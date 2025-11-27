@@ -21,39 +21,67 @@ class Car:
         self.surface = pygame.Surface((self.length, self.width), pygame.SRCALPHA)
         self.surface.fill(color)
 
+        self.input_offset = 0
+        self.steering_input = 0
+
     def handle_input(self, keys):
-        """Kendali manual player"""
-        if keys[pygame.K_UP]:
+        """Kendali manual player dengan kontrol global (A/D selalu kanan/kiri layar)"""
+        if keys[pygame.K_w]:
             self.velocity += self.acceleration_rate
-        elif keys[pygame.K_DOWN]:
+        elif keys[pygame.K_s]:
             self.velocity -= self.acceleration_rate
         else:
             self.velocity *= self.friction
 
         self.velocity = max(-self.max_speed, min(self.max_speed, self.velocity))
 
-        if keys[pygame.K_LEFT]:
-            self.angle -= math.radians(self.steering_rate)
-        if keys[pygame.K_RIGHT]:
-            self.angle += math.radians(self.steering_rate)
+        # steering input untuk drift
+        self.steering_input = 0
+        if keys[pygame.K_d]:
+            self.steering_input = 1
+        elif keys[pygame.K_a]:
+            self.steering_input = -1
+
+        # if self.keys == keys[pygame.K_d]: self.k_right = keys[pygame.KEYDOWN] * -5
+        # elif self.keys == keys[pygame.K_a]: self.k_left = keys[pygame.KEYDOWN] * 5
+        # elif self.keys == keys[pygame.K_w]: self.k_up = keys[pygame.KEYDOWN] * 2
+        # elif self.keys == keys[pygame.K_s]: self.k_down = keys[pygame.KEYDOWN] * -2
+
+        # ubah sudut mobil sesuai global control
+        self.angle += math.radians(self.steering_rate) * self.steering_input
+
+
+        # # steering input
+        # if keys[pygame.K_d]:
+        #     self.angle += math.radians(self.steering_rate)
+        #     # self.steering_input = 1
+        # elif keys[pygame.K_a]:
+        #     self.angle -= math.radians(self.steering_rate)
+            # self.steering_input = -1
+        # else:
+        #     self.steering_input = 0
 
     def update(self, walls):
-        """Update posisi + deteksi tabrakan"""
+        """Update posisi + deteksi tabrakan dengan drift alami"""
         prev_x, prev_y = self.x, self.y
 
-        # update posisi berdasarkan kecepatan dan sudut
-        self.x += math.cos(self.angle) * self.velocity
-        self.y += math.sin(self.angle) * self.velocity
+        # drift kecil saat berbelok
+        drift_offset = -0.3 * self.steering_input * (self.velocity / self.max_speed)
+        move_angle = self.angle + self.input_offset + drift_offset
+
+        self.x += math.cos(move_angle) * self.velocity
+        self.y += math.sin(move_angle) * self.velocity
 
         rotated_car = pygame.transform.rotate(self.surface, -math.degrees(self.angle))
         self.rect = rotated_car.get_rect(center=(self.x, self.y))
-
+        
         # deteksi tabrakan
         for wall in walls:
             if self.rect.colliderect(wall):
                 self.x, self.y = prev_x, prev_y
                 self.velocity *= -0.4
                 break
+
 
     def draw(self, screen):
         """Render mobil dan indikator arah depan"""

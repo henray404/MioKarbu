@@ -8,14 +8,14 @@ clock = pygame.time.Clock()
 # buat mobil player
 player = Car(400, 300, color=(255, 165, 0))
 
-# dinding
-walls = [
-    pygame.Rect(50, 50, 700, 20),
-    pygame.Rect(50, 530, 700, 20),
-    pygame.Rect(50, 50, 20, 500),
-    pygame.Rect(730, 50, 20, 500),
-    pygame.Rect(300, 200, 200, 20),
-]
+# # dinding
+# walls = [
+#     pygame.Rect(50, 50, 700, 20),
+#     pygame.Rect(50, 530, 700, 20),
+#     pygame.Rect(50, 50, 20, 500),
+#     pygame.Rect(730, 50, 20, 500),
+#     pygame.Rect(300, 200, 200, 20),
+# ]
 
 running = True
 while running:
@@ -23,14 +23,13 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
     keys = pygame.key.get_pressed()
     player.handle_input(keys)
-    player.update(walls)
+    player.update([])
 
     # render
     screen.fill((30, 30, 30))
-    for wall in walls:
+    for wall in []:
         pygame.draw.rect(screen, (200, 200, 200), wall)
 
     player.draw(screen)
