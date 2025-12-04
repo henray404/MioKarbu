@@ -8,7 +8,6 @@ from entities.player_car import PlayerCar
 from entities.ai_car import AICar
 from core import GameManager
 
-
 class WallsDrawable:
     """Static walls drawable"""
 
@@ -23,6 +22,30 @@ class WallsDrawable:
     def draw(self, screen: pygame.Surface):
         for wall in self.walls:
             pygame.draw.rect(screen, self.color, wall)
+
+# # dinding
+# walls = [
+#     pygame.Rect(50, 50, 700, 20),
+#     pygame.Rect(50, 530, 700, 20),
+#     pygame.Rect(50, 50, 20, 500),
+#     pygame.Rect(730, 50, 20, 500),
+#     pygame.Rect(300, 200, 200, 20),
+# ]
+
+# running = True
+# while running:
+#     dt = clock.tick(60) / 1000
+#     for event in pygame.event.get():
+#         if event.type == pygame.QUIT:
+#             running = False
+#     keys = pygame.key.get_pressed()
+#     player.handle_input(keys)
+#     player.update([])
+
+#     # render
+#     screen.fill((30, 30, 30))
+#     for wall in []:
+#         pygame.draw.rect(screen, (200, 200, 200), wall)
 
 
 def main():
