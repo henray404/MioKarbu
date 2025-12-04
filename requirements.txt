@@ -1,0 +1,5 @@
+numpy>=1.26
+opencv-python>=4.10
+pyautogui>=0.9.54
+mlxtend==0.23.4
+pygame>=2.6.0
