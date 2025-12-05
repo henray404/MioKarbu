@@ -19,7 +19,9 @@ class Car:
         self.surface = pygame.transform.rotate(self.surface, -90)
         self.pos = [600, 240]  # Starting position
         self.angle = 0
-        self.speed = 0
+        self.speed = 6  # Fixed speed
+        self.initial_angle = 0  # Track arah awal
+        self.total_rotation = 0  # Track total rotasi
         self.center = [self.pos[0] + 23, self.pos[1] + 46]
         self.radars = []
         self.is_alive = True
@@ -30,6 +32,14 @@ class Car:
         self.start_pos = [600, 240]
         self.has_left_start = False  # Track apakah sudah keluar dari area start
         self.min_distance_to_leave = 300  # Jarak minimum dari start untuk dianggap keluar
+        self.collision_count = 0  # Track berapa kali collision (untuk penalty)
+        self.max_distance = 0  # Track jarak terjauh (untuk encourage exploration)
+        self.stuck_timer = 0  # Track berapa lama stuck
+        self.prev_pos = self.pos.copy()  # Track posisi sebelumnya
+        self.behavior_trajectory = []  # Track pergerakan untuk novelty
+        self.unique_positions = set()  # Track posisi unik yang dikunjungi
+        self.consecutive_same_pos = 0  # Track berapa lama di posisi sama
+        self.last_grid_pos = None  # Last grid position
     
     def draw(self, screen, camera):
         # Draw dengan camera offset
@@ -65,9 +75,11 @@ class Car:
                 # Jika bukan hitam, putih, atau merah = keluar track
                 if not (is_black or is_white or is_red):
                     self.is_alive = False
+                    self.collision_count += 1  # Track collision untuk penalty
                     break
             except:
                 self.is_alive = False
+                self.collision_count += 1
                 break
     
     def check_radar(self, degree, map):
@@ -103,7 +115,7 @@ class Car:
         self.radars.append([(x, y), dist])
     
     def update(self, map):
-        # Check speed - lebih lambat untuk kontrol lebih baik
+        # Speed SELALU 6 (gak bisa diubah)
         self.speed = 6
         
         # Check position and rotate
@@ -115,10 +127,45 @@ class Car:
         self.distance += self.speed
         self.time_spent += 1
         
-        # Lap detection - pakai math.sqrt untuk hitung jarak dari start
+        # Track max distance (untuk reward exploration)
+        if self.distance > self.max_distance:
+            self.max_distance = self.distance
+        
+        # Calculate distance from start ONCE (dipakai untuk semua checks)
         dist_from_start = math.sqrt(math.pow(self.pos[0] - self.start_pos[0], 2) + 
                                    math.pow(self.pos[1] - self.start_pos[1], 2))
+        near_finish = dist_from_start < 120  # Dalam radius 120 dari finish line
         
+        # Record behavior trajectory setiap 10 frame untuk novelty
+        if self.time_spent % 10 == 0:
+            pos_grid = (int(self.pos[0] / 50), int(self.pos[1] / 50))  # Grid 50x50
+            self.behavior_trajectory.append(pos_grid)
+            self.unique_positions.add(pos_grid)
+            
+            # Track jika stuck di grid yang sama (tapi SKIP kalo di finish line)
+            if pos_grid == self.last_grid_pos and not near_finish:
+                self.consecutive_same_pos += 1
+                # INSTANT DEATH jika stuck di grid sama > 5 measurements (50 frames)
+                if self.consecutive_same_pos > 5:
+                    self.is_alive = False
+            else:
+                self.consecutive_same_pos = 0
+            self.last_grid_pos = pos_grid
+        
+        # Stuck detection - jika posisi hampir gak berubah
+        pos_change = math.sqrt(math.pow(self.pos[0] - self.prev_pos[0], 2) + 
+                              math.pow(self.pos[1] - self.prev_pos[1], 2))
+        
+        if pos_change < 3 and not near_finish:  # Hampir gak gerak DAN bukan di finish line
+            self.stuck_timer += 1
+            if self.stuck_timer > 30:  # Stuck 30 frames = mati
+                self.is_alive = False
+        else:
+            self.stuck_timer = 0
+        
+        self.prev_pos = self.pos.copy()
+        
+        # Lap detection - pakai math.sqrt untuk hitung jarak dari start (sudah dihitung di atas)
         # Jika sudah jauh dari start (keluar dari area start)
         if dist_from_start > self.min_distance_to_leave:
             if not self.has_left_start:
@@ -126,9 +173,16 @@ class Car:
         
         # Jika sudah keluar DAN kembali dekat ke start = 1 lap selesai
         elif self.has_left_start and dist_from_start < 80:
-            self.lap_count += 1
-            self.has_left_start = False  # Reset untuk lap berikutnya
-            print(f"🏁 Lap {self.lap_count} completed! Distance: {int(self.distance)}")
+            # Validasi clockwise: harus rotate minimal 300 derajat searah jarum jam
+            if self.total_rotation >= 300:
+                self.lap_count += 1
+                self.has_left_start = False  # Reset untuk lap berikutnya
+                self.total_rotation = 0  # Reset rotation counter
+                print(f"🏁 Lap {self.lap_count} completed! Distance: {int(self.distance)}")
+            else:
+                # Gak dihitung lap karena belum putaran penuh clockwise
+                self.has_left_start = False
+                self.total_rotation = 0
         
         # Calculate 4 collision points
         self.center = [int(self.pos[0]) + 23, int(self.pos[1]) + 23]
@@ -162,10 +216,37 @@ class Car:
         return self.is_alive
 
     def get_reward(self):
-        # Reward berdasarkan distance + bonus untuk lap completion
-        base_reward = self.distance / 50.0
-        lap_bonus = self.lap_count * 100
-        return base_reward + lap_bonus
+        # CURRICULUM LEARNING: Different reward structure based on progress
+        
+        # Stage 1: Jika belum complete lap, HANYA novelty yang matter
+        if self.lap_count == 0:
+            # HARUS explore banyak area atau mati
+            novelty_score = len(self.unique_positions)
+            if novelty_score < 5:
+                return -100  # INSTANT NEGATIVE jika gak explore
+            
+            base_reward = novelty_score * 10  # TINGGI reward untuk exploration
+            rotation_reward = min(self.total_rotation / 2.0, 200)  # Cap 200
+            distance_reward = self.distance / 50.0
+            
+            # HARSH penalty untuk repetitive behavior
+            repetition_penalty = self.consecutive_same_pos * -20
+            
+            return base_reward + rotation_reward + distance_reward + repetition_penalty
+        
+        # Stage 2+: Udah complete minimal 1 lap, optimize speed dan consistency
+        else:
+            # EXPONENTIAL lap reward - lap selanjutnya jauh lebih valuable
+            lap_bonus = (self.lap_count ** 2) * 1000  # 1 lap=1000, 2 lap=4000, 3 lap=9000
+            
+            # Efficiency bonus (faster is better)
+            efficiency = self.distance / max(self.time_spent, 1)
+            efficiency_bonus = efficiency * 50
+            
+            # Novelty masih penting tapi less weighted
+            novelty_bonus = len(self.unique_positions) * 3
+            
+            return lap_bonus + efficiency_bonus + novelty_bonus
 
     def rot_center(self, image, angle):
         # Simple rotation without subsurface
@@ -214,12 +295,20 @@ def run_car(genomes, config):
         for index, car in enumerate(cars):
             output = nets[index].activate(car.get_data())
             i = output.index(max(output))
+            
+            prev_angle = car.angle
+            
             if i == 0:
-                car.angle += 7  # Belok kiri (lebih smooth)
+                car.angle += 7  # Belok kiri (clockwise)
             elif i == 1:
                 pass  # Jalan lurus (gak belok)
             else:
-                car.angle -= 7  # Belok kanan (lebih smooth)
+                car.angle -= 7  # Belok kanan (counter-clockwise)
+            
+            # Track total rotation (hanya count rotation ke kiri/clockwise)
+            angle_change = car.angle - prev_angle
+            if angle_change > 0:  # Rotation ke kiri (clockwise) saja yang dihitung
+                car.total_rotation += angle_change
 
         # Update car and fitness
         remain_cars = 0
@@ -229,7 +318,8 @@ def run_car(genomes, config):
             if car.get_alive():
                 remain_cars += 1
                 car.update(map)
-                genomes[i][1].fitness += car.get_reward()
+                # Set fitness (bukan increment) biar gak infinite growth
+                genomes[i][1].fitness = car.get_reward()
                 
                 # Check jika sudah 15 lap berturut-turut tanpa collision
                 if car.lap_count >= 15:
@@ -322,7 +412,7 @@ if __name__ == "__main__":
     p.add_reporter(neat.Checkpointer(5, filename_prefix=f'{checkpoint_dir}/neat-checkpoint-'))
     
     # Run NEAT (akan memanggil run_car untuk setiap generasi)
-    winner = p.run(run_car, 1000)
+    winner = p.run(run_car, 50)
     
     # Save best genome
     print(f"\n\nBest genome:\n{winner}")
