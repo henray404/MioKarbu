@@ -1,0 +1,173 @@
+# =============================================================================
+# NEAT Configuration untuk Tabrak Bahlil - AI Motor Racing
+# =============================================================================
+# 
+# INPUT (7 sensor):
+#   [0] sensor kiri jauh    (-90°)
+#   [1] sensor kiri tengah  (-60°)
+#   [2] sensor kiri dekat   (-30°)
+#   [3] sensor depan        (0°)
+#   [4] sensor kanan dekat  (+30°)
+#   [5] sensor kanan tengah (+60°)
+#   [6] sensor kanan jauh   (+90°)
+#   
+#   Nilai: 0.0 (sangat dekat tembok) - 1.0 (jauh/aman)
+#
+# OUTPUT (2 kontrol):
+#   [0] steering: -1.0 (kiri) to +1.0 (kanan)
+#   [1] throttle: -1.0 (mundur) to +1.0 (maju)
+#
+# =============================================================================
+
+[NEAT]
+# Fungsi fitness yang dipakai (max = cari nilai tertinggi)
+fitness_criterion     = max
+
+# Target fitness - training stop kalau tercapai (set tinggi biar terus jalan)
+fitness_threshold     = 100000
+
+# Jangan stop berdasarkan fitness (biar jalan sampai generations habis)
+no_fitness_termination = False
+
+# Jumlah motor (genome) per generasi
+# Semakin banyak = eksplorasi lebih luas, tapi lebih lambat
+pop_size              = 50
+
+# Kalau semua species punah, jangan reset dari awal
+reset_on_extinction   = False
+
+
+# =============================================================================
+# GENOME CONFIGURATION
+# =============================================================================
+
+[DefaultGenome]
+
+# ---------- Network Architecture ----------
+# Jumlah input nodes (sensor)
+num_inputs              = 7
+
+# Jumlah hidden nodes awal (NEAT akan evolve ini)
+num_hidden              = 0
+
+# Jumlah output nodes (steering, throttle)
+num_outputs             = 2
+
+# ---------- Activation Function ----------
+# tanh: output -1 to 1 (cocok untuk steering & throttle)
+activation_default      = tanh
+activation_mutate_rate  = 0.0
+activation_options      = tanh
+
+# ---------- Aggregation Function ----------
+# Cara menggabungkan input ke neuron
+aggregation_default     = sum
+aggregation_mutate_rate = 0.0
+aggregation_options     = sum
+
+# ---------- Bias Parameters ----------
+# Bias = nilai konstan yang ditambahkan ke neuron
+bias_init_mean          = 0.0
+bias_init_stdev         = 1.0
+bias_init_type          = gaussian
+bias_max_value          = 30.0
+bias_min_value          = -30.0
+bias_mutate_power       = 0.5
+bias_mutate_rate        = 0.7
+bias_replace_rate       = 0.1
+
+# ---------- Connection Parameters ----------
+# Probabilitas menambah/menghapus koneksi
+conn_add_prob           = 0.5
+conn_delete_prob        = 0.5
+
+# Default state koneksi
+enabled_default              = True
+enabled_mutate_rate          = 0.01
+enabled_rate_to_false_add    = 0.0
+enabled_rate_to_true_add     = 0.0
+
+# ---------- Node Parameters ----------
+# Probabilitas menambah/menghapus neuron
+node_add_prob           = 0.2
+node_delete_prob        = 0.2
+
+# ---------- Weight Parameters ----------
+# Weight = bobot/kekuatan koneksi antar neuron
+weight_init_mean        = 0.0
+weight_init_stdev       = 1.0
+weight_init_type        = gaussian
+weight_max_value        = 30.0
+weight_min_value        = -30.0
+weight_mutate_power     = 0.5
+weight_mutate_rate      = 0.8
+weight_replace_rate     = 0.1
+
+# ---------- Network Structure ----------
+# feed_forward = True: tidak ada loop/recurrent
+feed_forward            = True
+
+# Koneksi awal: full = semua input konek ke semua output
+initial_connection      = full
+
+# Hanya satu mutasi struktural per generasi
+single_structural_mutation = false
+
+# Pastikan mutasi struktural berhasil
+structural_mutation_surer = default
+
+# Response parameters
+response_init_mean      = 1.0
+response_init_stdev     = 0.0
+response_init_type      = gaussian
+response_max_value      = 30.0
+response_min_value      = -30.0
+response_mutate_power   = 0.0
+response_mutate_rate    = 0.0
+response_replace_rate   = 0.0
+
+
+# ---------- Compatibility (untuk speciation) ----------
+# Koefisien untuk menghitung "jarak" antar genome
+compatibility_disjoint_coefficient = 1.0
+compatibility_weight_coefficient   = 0.5
+
+
+# =============================================================================
+# SPECIES CONFIGURATION
+# =============================================================================
+
+[DefaultSpeciesSet]
+# Threshold untuk menentukan apakah 2 genome satu species
+# Semakin kecil = species lebih ketat/homogen
+compatibility_threshold = 3.0
+
+
+# =============================================================================
+# STAGNATION CONFIGURATION
+# =============================================================================
+
+[DefaultStagnation]
+# Cara menghitung fitness species
+species_fitness_func = max
+
+# Hapus species yang tidak improve selama N generasi
+max_stagnation       = 20
+
+# Minimal species yang selalu dipertahankan
+species_elitism      = 2
+
+
+# =============================================================================
+# REPRODUCTION CONFIGURATION
+# =============================================================================
+
+[DefaultReproduction]
+# Jumlah genome terbaik yang langsung lolos ke generasi berikutnya
+elitism            = 2
+
+# Persentase genome terbaik yang boleh reproduce
+survival_threshold = 0.2
+
+# Minimum ukuran species
+min_species_size   = 2

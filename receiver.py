@@ -38,12 +38,12 @@ while True:
         # packet loss detection
         if last_counter and counter != last_counter + 1:
             missed = counter - last_counter - 1
-            print(f"⚠️ Packet loss: missed {missed} packets")
+            print(f"Warning: Packet loss: missed {missed} packets")
         last_counter = counter
 
         # validation
         if not validate(yaw, pitch, roll):
-            print(f"⚠️ Invalid data ignored: {yaw:.2f}, {pitch:.2f}, {roll:.2f}")
+            print(f"Warning: Invalid data ignored: {yaw:.2f}, {pitch:.2f}, {roll:.2f}")
             continue
 
         # smoothing
