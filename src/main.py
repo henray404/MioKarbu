@@ -131,8 +131,8 @@ def main():
     # Load track dan get actual size
     track_surface = pygame.image.load(track_path)
     
-    # Scale track (perbesar 2x)
-    track_scale = 5.0  # Ubah nilai ini untuk scale yang berbeda
+    # Scale track (perbesar)
+    track_scale = 6.0  # Ubah nilai ini untuk scale yang berbeda
     original_width, original_height = track_surface.get_size()
     track_surface = pygame.transform.scale(
         track_surface, 
@@ -142,22 +142,54 @@ def main():
     map_width, map_height = track_surface.get_size()
     print(f"Map Size   : {map_width}x{map_height} (scaled {track_scale}x)")
     
+    # Load masking untuk collision detection
+    masking_path = os.path.join(ASSETS_DIR, "tracks", "masking.png")
+    masking_surface = None
+    if os.path.exists(masking_path):
+        masking_surface = pygame.image.load(masking_path)
+        masking_surface = pygame.transform.scale(
+            masking_surface,
+            (int(masking_surface.get_width() * track_scale), 
+             int(masking_surface.get_height() * track_scale))
+        )
+        print(f"Masking    : Loaded ({masking_surface.get_width()}x{masking_surface.get_height()})")
+    else:
+        print(f"Masking    : Not found, using track for collision")
+    
+    # Load AI masking (terpisah untuk AI)
+    ai_masking_path = os.path.join(ASSETS_DIR, "tracks", "ai_masking.png")
+    ai_masking_surface = None
+    if os.path.exists(ai_masking_path):
+        ai_masking_surface = pygame.image.load(ai_masking_path)
+        ai_masking_surface = pygame.transform.scale(
+            ai_masking_surface,
+            (int(ai_masking_surface.get_width() * track_scale), 
+             int(ai_masking_surface.get_height() * track_scale))
+        )
+        print(f"AI Masking : Loaded ({ai_masking_surface.get_width()}x{ai_masking_surface.get_height()})")
+    else:
+        # Fallback ke masking biasa jika ai_masking tidak ada
+        ai_masking_surface = masking_surface
+        print(f"AI Masking : Using player masking (ai_masking.png not found)")
+    
     # Font
     font_large = pygame.font.Font(None, 48)
     font_small = pygame.font.Font(None, 32)
     
     # Spawn positions (di-scale sesuai track)
     # Base position pada track original
-    base_spawn_x, base_spawn_y = 1300, 500
+    base_spawn_x, base_spawn_y = 1745, 275
     spawn_x = int(base_spawn_x * track_scale)
     spawn_y = int(base_spawn_y * track_scale)
-    spawn_angle = 90  # Hadap ke bawah
+    spawn_angle = 0  # Hadap ke kanan (0°)
     
     # Create player (spawn di depan)
     player = Motor(spawn_x, spawn_y, color="pink")
-    player.angle = math.pi  # π radians = menghadap kiri (180°)
+    player.angle = 0  # 0 radians = menghadap kanan (0°)
     player.start_angle = player.angle
-    player.set_track_surface(track_surface)  # Set collision surface
+    player.set_track_surface(track_surface)  # Untuk visual reference
+    if masking_surface is not None:
+        player.set_masking_surface(masking_surface)  # Untuk collision
     player.invincible = True  # Player tidak bisa mati
     
     # Create AI opponents (spawn di samping player)
@@ -171,11 +203,13 @@ def main():
         
         # Create AI Motor (same class as player, different color)
         ai_car = Motor(spawn_x + offset_x, spawn_y + offset_y, color="pink")
-        # Convert angle untuk kompatibilitas dengan AI model yang di-train dengan AICar
-        # AICar pakai: cos(radians(360 - angle_deg)) → yang setara dengan cos(-radians(angle_deg))
-        ai_car.angle = -math.radians(spawn_angle)
+        # AI menghadap kanan (0°) - sama dengan player
+        ai_car.angle = 0
         ai_car.start_angle = ai_car.angle
         ai_car.set_track_surface(track_surface)
+        if ai_masking_surface is not None:
+            ai_car.set_masking_surface(ai_masking_surface)  # Pakai AI masking
+        ai_car.invincible = True  # AI juga invincible biar tidak mati
         ai_car.velocity = 0  # Start diam dulu, nanti jalan setelah countdown
         
         net, _, _ = load_ai(model_path, config_path)
@@ -210,6 +244,7 @@ def main():
                     player.angle = 0  # Reset to facing right
                     for ai_car in ai_cars:
                         ai_car.reset()
+                        ai_car.angle = 0  # Reset AI to facing right
                         ai_car.velocity = 0
                     winner = None
                     game_over = False
@@ -252,7 +287,7 @@ def main():
                 output = net.activate(radar_data)
                 action = output.index(max(output))
                 
-                # Steer
+                # Steer (original direction)
                 if action == 0:
                     ai_car.steer(1)
                 elif action == 2:

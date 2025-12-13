@@ -31,7 +31,7 @@ no_fitness_termination = False
 
 # Jumlah motor (genome) per generasi
 # Semakin banyak = eksplorasi lebih luas, tapi lebih lambat
-pop_size              = 50
+pop_size              = 100
 
 # Kalau semua species punah, jangan reset dari awal
 reset_on_extinction   = False

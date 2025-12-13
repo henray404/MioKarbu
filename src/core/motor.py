@@ -25,12 +25,12 @@ class Motor:
         self.color = color
 
         # konstanta fisika
-        self.acceleration_rate = 0.56  # 30% lebih lambat (0.8 * 0.7)
+        self.acceleration_rate = 0.16  # 30% lebih lambat (0.8 * 0.7)
         self.friction = 0.98
         self.steering_rate = 3  # derajat per frame
-        self.max_speed = 12  # 30% lebih lambat (4 * 0.7)
-        self.length = 92  # 15% lebih besar (80 * 1.15)
-        self.width = 46   # 15% lebih besar (40 * 1.15)
+        self.max_speed = 15  # 30% lebih lambat (4 * 0.7)
+        self.length = 140  # 15% lebih besar (80 * 1.15)
+        self.width = 80   # 15% lebih besar (40 * 1.15)
         
         # drift mechanics
         self.drift_angle = 0  # sudut drift saat ini
@@ -75,6 +75,7 @@ class Motor:
         # Track reference untuk collision (Track object atau pygame.Surface)
         self.track = None
         self.track_surface = None  # Direct pygame.Surface for pixel collision
+        self.masking_surface = None  # Separate masking for advanced collision
         
         # Sensor untuk AI (composition pattern)
         self.sensor: Optional[DistanceSensor] = None
@@ -91,6 +92,25 @@ class Motor:
         self.total_rotation = 0
         self.has_left_start = False
         self.lap_cooldown = 0
+        
+        # Sequential Checkpoint system (warna berbeda = urutan berbeda)
+        # Hijau (0,255,0) = CP1, Cyan (0,255,255) = CP2, Kuning (255,255,0) = CP3, Magenta (255,0,255) = CP4
+        self.checkpoint_count = 0  # Jumlah checkpoint yang sudah dilalui di lap ini
+        self.expected_checkpoint = 1  # Checkpoint berikutnya yang harus dilalui (1-4)
+        self.total_checkpoints = 4  # Total checkpoint per lap
+        self.last_checkpoint_time = 0  # Frame terakhir melewati checkpoint
+        self.on_checkpoint = False  # Sedang di atas checkpoint?
+        self.checkpoints_for_lap = 4  # Harus lewat semua checkpoint untuk validasi lap
+        self.last_checkpoint_x = x  # Posisi X saat checkpoint terakhir
+        self.last_checkpoint_y = y  # Posisi Y saat checkpoint terakhir
+        self.min_checkpoint_distance = 0  # Tidak perlu jarak minimal karena sudah sequential
+        self.failed_lap_checks = 0  # Counter untuk failed lap attempts
+        self.max_failed_lap_checks = 5  # Mati setelah 5x gagal
+        
+        # Lap timing
+        self.lap_start_time = 0  # Frame saat lap dimulai
+        self.last_lap_time = 0  # Waktu lap terakhir (frames)
+        self.best_lap_time = float('inf')  # Best lap time
         
         # AI Radar System (built-in, no external sensor needed)
         self.radars: List[Tuple[Tuple[int, int], int]] = []
@@ -114,6 +134,9 @@ class Motor:
         
         # Invincible mode (untuk player - tidak mati kalau keluar track)
         self.invincible = False
+        
+        # Collision physics thresholds
+        self.wall_explode_speed = 8  # Speed di atas ini = meledak saat nabrak tembok
 
     def set_track(self, track):
         """Set track untuk collision detection berbasis pixel"""
@@ -125,6 +148,16 @@ class Motor:
     def set_track_surface(self, surface: pygame.Surface):
         """Set pygame.Surface langsung untuk collision detection (alternatif dari Track object)"""
         self.track_surface = surface
+    
+    def set_masking_surface(self, surface: pygame.Surface):
+        """Set masking surface untuk advanced collision detection
+        
+        Masking colors:
+        - Black (R,G,B < 50): Track/jalan
+        - White (R,G,B > 200): Slow zone
+        - Gray (50-200): Wall/tembok (bounce/explode)
+        """
+        self.masking_surface = surface
     
     def set_sensor(self, sensor: DistanceSensor):
         """
@@ -225,6 +258,17 @@ class Motor:
         self.total_rotation = 0
         self.has_left_start = False
         self.lap_cooldown = 0
+        # Reset checkpoint
+        self.checkpoint_count = 0
+        self.expected_checkpoint = 1  # Reset urutan checkpoint
+        self.on_checkpoint = False
+        self.last_checkpoint_x = self.start_x
+        self.last_checkpoint_y = self.start_y
+        self.failed_lap_checks = 0  # Reset failed lap counter
+        # Reset lap timing
+        self.lap_start_time = 0
+        self.last_lap_time = 0
+        self.best_lap_time = float('inf')
         # Reset AI tracking
         self.time_spent = 0
         self.unique_positions.clear()
@@ -237,7 +281,7 @@ class Motor:
     def steer(self, direction: int):
         """
         Belokkan motor (untuk AI control).
-        Kompatibel dengan model AI yang sudah di-train dengan AICar.
+        SAMA dengan player handle_input logic.
         
         Args:
             direction: -1 (kanan), 0 (lurus), 1 (kiri)
@@ -245,12 +289,11 @@ class Motor:
         prev_angle = self.angle
         steer_amount = math.radians(7)  # ~7 derajat per frame
         
-        # Arah terbalik dari handle_input karena AI model di-train dengan AICar
-        # yang punya sistem koordinat berbeda
+        # Sama dengan player: direction positif = angle bertambah (belok kiri)
         if direction == 1:
-            self.angle -= steer_amount  # Belok kiri di sistem AICar
+            self.angle += steer_amount  # Belok kiri (sama dengan player tekan D)
         elif direction == -1:
-            self.angle += steer_amount  # Belok kanan di sistem AICar
+            self.angle -= steer_amount  # Belok kanan (sama dengan player tekan A)
         # direction == 0: lurus
         
         # Track rotation untuk lap detection
@@ -261,8 +304,12 @@ class Motor:
         """Update sensor radar (built-in, tanpa DistanceSensor)
         
         Kompatibel dengan AICar yang pakai sistem 360-angle
+        Uses masking_surface if available, otherwise track_surface
         """
         self.radars.clear()
+        
+        # Gunakan masking jika ada, otherwise fallback ke track_surface
+        surface_to_use = self.masking_surface if self.masking_surface is not None else track_surface
         
         # Convert angle dari radians ke degrees
         # Gunakan sistem 360-angle seperti AICar untuk kompatibilitas
@@ -281,20 +328,29 @@ class Motor:
                 y = int(self.y + math.sin(radar_angle) * length)
                 
                 try:
-                    if x < 0 or x >= track_surface.get_width() or \
-                       y < 0 or y >= track_surface.get_height():
+                    if x < 0 or x >= surface_to_use.get_width() or \
+                       y < 0 or y >= surface_to_use.get_height():
                         break
                     
-                    pixel = track_surface.get_at((x, y))
+                    pixel = surface_to_use.get_at((x, y))
                     r, g, b = pixel[0], pixel[1], pixel[2]
+                    avg = (r + g + b) / 3
                     
-                    # Check jika pixel adalah jalan
-                    is_black = (r < 120 and g < 120 and b < 120)
-                    is_white = (r > 100 and g > 100 and b > 100)
-                    is_red = (r > 150 and g < 100 and b < 100)
-                    
-                    if not (is_black or is_white or is_red):
-                        break
+                    # Masking mode: black = track, putih/abu = slow (OK), merah = wall (stop)
+                    if self.masking_surface is not None:
+                        # Hanya stop di merah (wall)
+                        is_red = (r > 150 and g < 100 and b < 100)
+                        if is_red:
+                            break
+                    else:
+                        # Legacy mode: color-based
+                        is_gray = (abs(r - g) < 50 and abs(g - b) < 50 and abs(r - b) < 50)
+                        is_white = (r > 200 and g > 200 and b > 200)
+                        is_red = (r > 150 and g < 100 and b < 100)
+                        is_green = (g > r + 30 and g > b + 30)
+                        
+                        if is_green or not (is_gray or is_white or is_red):
+                            break
                 except:
                     break
                 
@@ -364,7 +420,7 @@ class Motor:
         return corners
     
     def _check_lap(self):
-        """Check lap completion"""
+        """Check lap completion with checkpoint validation"""
         if self.lap_cooldown > 0:
             self.lap_cooldown -= 1
             return
@@ -374,15 +430,53 @@ class Motor:
             (self.y - self.start_y)**2
         )
         
-        if dist_from_start > 300:
+        # DEBUG: show distance from start periodically
+        if self.time_spent % 60 == 0 and self.checkpoint_count >= 4:
+            print(f"[START AREA] dist={dist_from_start:.0f}, cp={self.checkpoint_count}, has_left={self.has_left_start}")
+        
+        # Area thresholds
+        leave_start_dist = 300  # Harus keluar 300 pixel dulu
+        return_start_dist = 200  # Kembali dalam 200 pixel = finish
+        
+        if dist_from_start > leave_start_dist:
             self.has_left_start = True
-        elif self.has_left_start and dist_from_start < 80:
-            if self.total_rotation >= 300:
+            # Start lap timer saat pertama kali keluar dari start
+            if self.lap_start_time == 0:
+                self.lap_start_time = self.time_spent
+                
+        elif self.has_left_start and dist_from_start < return_start_dist:
+            # Debug: lihat kondisi lap
+            who = "PLAYER" if self.invincible else "AI"
+            print(f"[LAP CHECK] {who}: checkpoints={self.checkpoint_count}/{self.checkpoints_for_lap}")
+            
+            # Validasi: harus lewat semua checkpoint
+            if self.checkpoint_count >= self.checkpoints_for_lap:
+                # Hitung lap time
+                lap_time = self.time_spent - self.lap_start_time
+                self.last_lap_time = lap_time
+                if lap_time < self.best_lap_time:
+                    self.best_lap_time = lap_time
+                
                 self.lap_count += 1
-                print(f"[PLAYER] Lap {self.lap_count} completed!")
+                lap_time_seconds = lap_time / 60.0  # Konversi ke detik (60 FPS)
+                print(f"[LAP] {who} Lap {self.lap_count} completed! Time: {lap_time_seconds:.2f}s (checkpoints: {self.checkpoint_count})")
                 self.lap_cooldown = 60
+                
+                # Reset untuk lap berikutnya
+                self.checkpoint_count = 0
+                self.expected_checkpoint = 1  # Reset urutan checkpoint
+                self.lap_start_time = self.time_spent  # Reset timer
+                self.failed_lap_checks = 0  # Reset failed counter setelah sukses
+            else:
+                print(f"[LAP CHECK] {who} FAILED - need {self.checkpoints_for_lap} checkpoints, got {self.checkpoint_count}")
+                self.failed_lap_checks += 1
+                
+                # Mati setelah 5x gagal (hanya untuk AI, bukan player)
+                if not self.invincible and self.failed_lap_checks >= self.max_failed_lap_checks:
+                    print(f"[AI KILLED] Too many failed lap attempts ({self.failed_lap_checks})")
+                    self.alive = False
+                    self.is_alive = False
             self.has_left_start = False
-            self.total_rotation = 0
 
     def handle_input(self, keys):
         """Kendali manual player dengan kontrol relatif dan drift (standard racing game)"""
@@ -406,6 +500,9 @@ class Motor:
         # Drift dengan Space atau Shift
         self.is_drifting = keys[pygame.K_SPACE] or keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
         
+        # Simpan angle sebelum berubah untuk rotation tracking
+        prev_angle = self.angle
+        
         if abs(self.velocity) > 0.1:
             if self.is_drifting and self.steering_input != 0:
                 # Mode drift - steering lebih tajam dan ada slide
@@ -424,6 +521,10 @@ class Motor:
                 
                 # Decay drift angle
                 self.drift_angle *= 0.9
+        
+        # Track rotation untuk lap detection (di handle_input karena angle berubah di sini)
+        angle_diff = math.degrees(self.angle - prev_angle)
+        self.total_rotation += abs(angle_diff)
 
     def update(self, walls=None):
         """Update posisi + deteksi tabrakan dengan drift mechanics
@@ -436,6 +537,7 @@ class Motor:
             return
             
         prev_x, prev_y = self.x, self.y
+        prev_angle = self.angle  # Simpan angle sebelum update untuk rotation tracking
 
         # Hitung movement angle dengan drift
         if self.is_drifting:
@@ -482,7 +584,129 @@ class Motor:
                 self.x = new_x
                 self.y = new_y
         
-        # Prioritas 2: Pixel-based collision dari pygame.Surface langsung
+        # Prioritas 2: Masking-based collision (3 zones: black=track, white=slow, gray=wall)
+        elif self.masking_surface is not None:
+            self.x = new_x
+            self.y = new_y
+            
+            # Check collision di 4 sudut motor
+            corners = self._get_collision_corners()
+            for corner in corners:
+                cx, cy = int(corner[0]), int(corner[1])
+                
+                # Boundary check
+                if cx < 0 or cx >= self.masking_surface.get_width() or \
+                   cy < 0 or cy >= self.masking_surface.get_height():
+                    if not self.invincible:
+                        self.alive = False
+                    else:
+                        self.x, self.y = prev_x, prev_y
+                        self.velocity *= -0.3
+                    collided = True
+                    break
+                
+                # Get masking color
+                color = self.masking_surface.get_at((cx, cy))
+                r, g, b = color[0], color[1], color[2]
+                avg = (r + g + b) / 3
+                
+                # Zone detection:
+                # - Hitam = Track OK
+                # - Putih/Abu-abu = Slow zone
+                # - Merah = Tembok (bounce/explode)
+                # Sequential Checkpoints:
+                # - Hijau murni (g>200, r<100, b<100) = CP1
+                # - Cyan (g>200, b>200, r<100) = CP2
+                # - Kuning (r>200, g>200, b<100) = CP3
+                # - Magenta (r>200, b>200, g<100) = CP4
+                
+                is_black = (avg < 50)   # Track - OK
+                is_red = (r > 150 and g < 100 and b < 100)  # Wall
+                
+                # Checkpoint colors (sequential) - RELAXED CONDITIONS
+                is_cp1_green = (g > 150 and r < 150 and b < 150 and g > r and g > b)  # Greenish
+                is_cp2_cyan = (g > 150 and b > 150 and r < 150)   # Cyan-ish
+                is_cp3_yellow = (r > 150 and g > 150 and b < 150)  # Yellow-ish
+                is_cp4_magenta = (r > 150 and b > 150 and g < 150)  # Magenta-ish
+                
+                is_any_checkpoint = is_cp1_green or is_cp2_cyan or is_cp3_yellow or is_cp4_magenta
+                is_white_or_gray = (avg > 50 and not is_any_checkpoint and not is_red)
+                
+                # DEBUG: Print any unrecognized color (not black, not white, not red, not checkpoint)
+                if not is_black and not is_white_or_gray and not is_red and not is_any_checkpoint:
+                    print(f"[COLOR?] RGB=({r},{g},{b}) avg={avg:.0f} - NOT RECOGNIZED")
+                
+                if is_black:
+                    # Track OK
+                    self.on_checkpoint = False
+                    
+                elif is_any_checkpoint:
+                    # Check which checkpoint and if it's the expected one
+                    detected_cp = 0
+                    if is_cp1_green:
+                        detected_cp = 1
+                    elif is_cp2_cyan:
+                        detected_cp = 2
+                    elif is_cp3_yellow:
+                        detected_cp = 3
+                    elif is_cp4_magenta:
+                        detected_cp = 4
+                    
+                    # Jarak dari checkpoint terakhir
+                    dist_from_last_cp = math.sqrt(
+                        (self.x - self.last_checkpoint_x)**2 + 
+                        (self.y - self.last_checkpoint_y)**2
+                    )
+                    
+                    # DEBUG: Print semua kondisi
+                    # if not self.on_checkpoint:
+                    #     print(f"[CP DEBUG] RGB=({r},{g},{b}) Det=CP{detected_cp} Exp=CP{self.expected_checkpoint} Dist={dist_from_last_cp:.0f} NeedDist={self.min_checkpoint_distance}")
+                    
+                    # Hanya hitung jika checkpoint yang benar DAN sudah cukup jauh
+                    if not self.on_checkpoint and detected_cp == self.expected_checkpoint and dist_from_last_cp >= self.min_checkpoint_distance:
+                        self.checkpoint_count += 1
+                        self.last_checkpoint_time = self.time_spent
+                        self.last_checkpoint_x = self.x
+                        self.last_checkpoint_y = self.y
+                        self.on_checkpoint = True
+                        
+                        print(f"[CP OK] CP{detected_cp} passed! Count: {self.checkpoint_count}/4")
+                        
+                        # Update expected checkpoint (wrap around)
+                        self.expected_checkpoint = (self.expected_checkpoint % self.total_checkpoints) + 1
+                        
+                    elif not self.on_checkpoint:
+                        self.on_checkpoint = True
+                    
+                    break  # Keluar dari loop corner
+                    
+                elif is_white_or_gray:
+                    # Slow zone - speed penalty (putih dan abu-abu)
+                    self.velocity *= 0.99
+                    self.on_checkpoint = False
+                    collided = True
+                    
+                elif is_red:
+                    # Wall (merah) - bounce atau explode
+                    self.on_checkpoint = False
+                    if abs(self.velocity) > self.wall_explode_speed:
+                        # High speed = meledak
+                        if not self.invincible:
+                            self.alive = False
+                            self.is_alive = False
+                        else:
+                            # Invincible: severe penalty tapi tidak mati
+                            self.velocity *= -0.2
+                            self.x, self.y = prev_x, prev_y
+                    else:
+                        # Low speed = bounce back
+                        self.velocity = -self.velocity * 0.4
+                        self.x, self.y = prev_x, prev_y
+                    collided = True
+                    self.collision_count += 1
+                    break
+        
+        # Prioritas 3: Pixel-based collision dari pygame.Surface langsung (legacy)
         elif self.track_surface is not None:
             self.x = new_x
             self.y = new_y
@@ -500,21 +724,22 @@ class Motor:
                     collided = True
                     break
                 
-                # Color check - hitam = track, putih/merah = finish
+                # Color check - abu-abu = track, hijau = off-track
                 color = self.track_surface.get_at((cx, cy))
                 r, g, b = color[0], color[1], color[2]
                 
-                # Widen range to handle antialiasing (gray pixels)
-                is_black = (r < 120 and g < 120 and b < 120)
-                is_white = (r > 100 and g > 100 and b > 100)
+                # Track baru: abu-abu = jalan, hijau = off-track
+                is_gray = (abs(r - g) < 50 and abs(g - b) < 50 and abs(r - b) < 50)
+                is_white = (r > 200 and g > 200 and b > 200)
                 is_red = (r > 150 and g < 100 and b < 100)
+                is_green = (g > r + 30 and g > b + 30)
                 
-                if not (is_black or is_white or is_red):
+                if is_green or not (is_gray or is_white or is_red):
                     if not self.invincible:
                         self.alive = False
                     else:
                         # Speed penalty untuk invincible player
-                        self.velocity *= 0.915
+                        self.velocity *= 0.945
                     collided = True
                     break
         
@@ -569,8 +794,7 @@ class Motor:
             self.distance_traveled += distance
         
         # Track rotation untuk lap detection
-        prev_angle_deg = math.degrees(prev_angle) if 'prev_angle' in dir() else 0
-        angle_diff = math.degrees(self.angle) - prev_angle_deg
+        angle_diff = math.degrees(self.angle - prev_angle)
         if angle_diff > 180:
             angle_diff -= 360
         elif angle_diff < -180:

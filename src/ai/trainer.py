@@ -16,7 +16,7 @@ from typing import List, Tuple, Optional, Callable
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(BASE_DIR, "src"))
 
-from core.ai_car import AICar
+from core.motor import Motor
 
 
 class NEATTrainer:
@@ -31,7 +31,7 @@ class NEATTrainer:
     
     def __init__(self, config_path: str, track_name: str = "mandalika",
                  screen_width: int = 1280, screen_height: int = 960,
-                 map_width: int = 4096, map_height: int = 3072):
+                 map_width: int = 16512, map_height: int = 9216):  # Sama dengan main.py (6x scale)
         """
         Inisialisasi trainer.
         
@@ -61,10 +61,14 @@ class NEATTrainer:
         self.clock = None
         self.track_surface = None
         
-        # Spawn config (untuk mandalika 4096x3072)
-        self.spawn_x = 1300
-        self.spawn_y = 500
-        self.spawn_angle = 90  # Hadap ke bawah
+        # Spawn config - dihitung berdasarkan rasio dari track original
+        # Track original ~2752x1536, base spawn = 1745, 275
+        # Rasio: x = 0.634, y = 0.179
+        spawn_ratio_x = 0.634  # 1745 / 2752
+        spawn_ratio_y = 0.179  # 275 / 1536
+        self.spawn_x = int(map_width * spawn_ratio_x)
+        self.spawn_y = int(map_height * spawn_ratio_y)
+        self.spawn_angle = 0  # Hadap ke kanan (sama dengan player)
         
         # Win condition
         self.target_laps = 15
@@ -82,6 +86,18 @@ class NEATTrainer:
             self.track_surface, (self.map_width, self.map_height)
         )
         
+        # Load AI masking untuk training (bukan masking.png biasa)
+        ai_masking_path = os.path.join(BASE_DIR, "assets", "tracks", "ai_masking.png")
+        self.masking_surface = None
+        if os.path.exists(ai_masking_path):
+            self.masking_surface = pygame.image.load(ai_masking_path)
+            self.masking_surface = pygame.transform.scale(
+                self.masking_surface, (self.map_width, self.map_height)
+            )
+            print(f"AI Masking loaded: {self.map_width}x{self.map_height}")
+        else:
+            print(f"WARNING: ai_masking.png not found, using track for collision")
+        
         # Fonts
         self.font_large = pygame.font.SysFont("Arial", 70)
         self.font_small = pygame.font.SysFont("Arial", 30)
@@ -98,7 +114,7 @@ class NEATTrainer:
         self.generation += 1
         
         # Create cars dan networks
-        cars: List[AICar] = []
+        cars: List[Motor] = []
         nets: List[neat.nn.FeedForwardNetwork] = []
         
         for genome_id, genome in genomes:
@@ -106,15 +122,32 @@ class NEATTrainer:
             nets.append(net)
             genome.fitness = 0
             
-            car = AICar(self.spawn_x, self.spawn_y, self.spawn_angle)
+            # Pakai Motor class (sama dengan player)
+            car = Motor(self.spawn_x, self.spawn_y, color="pink")
+            car.angle = self.spawn_angle  # 0 = hadap kanan
+            car.start_angle = car.angle
+            car.set_track_surface(self.track_surface)
+            if self.masking_surface is not None:
+                car.set_masking_surface(self.masking_surface)
+            car.velocity = car.max_speed  # AI selalu jalan
             cars.append(car)
         
         # Camera
         camera_x, camera_y = 0, 0
         
+        # Max time per generation (seconds)
+        import time
+        max_gen_time = 60  # 60 detik per generasi
+        gen_start_time = time.time()
+        best_lap_count = 0  # Track best lap untuk reset timer
+        
         # Main loop
         running = True
         while running:
+            # Check max time
+            if time.time() - gen_start_time > max_gen_time:
+                break
+            
             # Event handling
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -125,7 +158,7 @@ class NEATTrainer:
             alive_count = 0
             
             for i, (car, net, (genome_id, genome)) in enumerate(zip(cars, nets, genomes)):
-                if not car.is_alive:
+                if not car.alive:
                     continue
                 
                 alive_count += 1
@@ -137,18 +170,46 @@ class NEATTrainer:
                 output = net.activate(radar_data)
                 action = output.index(max(output))
                 
-                # Steer: 0=kiri, 1=lurus, 2=kanan
+                # Steer: 0=kiri, 1=lurus, 2=kanan (sama dengan player)
                 if action == 0:
-                    car.steer(1)
+                    car.steer(1)  # Belok kiri
                 elif action == 2:
-                    car.steer(-1)
+                    car.steer(-1)  # Belok kanan
                 # action == 1: lurus
                 
                 # Update car
-                car.update(self.track_surface)
+                car.update()
                 
-                # Update fitness
-                genome.fitness = car.get_fitness()
+                # Keep AI at max speed (setelah update untuk override slow zone)
+                car.velocity = car.max_speed
+                
+                # Update fitness (sequential checkpoint system)
+                # Prioritas: distance > checkpoint progress > lap
+                
+                fitness = car.distance_traveled  # Base fitness = jarak tempuh
+                
+                # Checkpoint bonus (sequential checkpoint lebih bernilai)
+                # checkpoint_count = jumlah checkpoint yang sudah dilalui dalam urutan benar
+                fitness += car.checkpoint_count * 200  # 200 per checkpoint (lebih bernilai karena sequential)
+                
+                # Lap bonus (besar - berhasil complete semua checkpoint)
+                if car.lap_count > 0:
+                    fitness += car.lap_count * 2000  # 2000 per lap
+                
+                # Kill car jika tidak mencapai checkpoint berikutnya dalam 60 detik
+                max_time_between_checkpoints = 30 * 60  # 60 detik * 60 FPS
+                time_since_last_checkpoint = car.time_spent - car.last_checkpoint_time
+                if time_since_last_checkpoint > max_time_between_checkpoints:
+                    car.alive = False
+                    car.is_alive = False
+                
+                genome.fitness = fitness
+                
+                # Reset timer jika ada lap baru (reward for progress)
+                if car.lap_count > best_lap_count:
+                    best_lap_count = car.lap_count
+                    gen_start_time = time.time()  # Reset timer!
+                    print(f"[TIMER RESET] Lap {best_lap_count} completed! Timer reset to 60s")
                 
                 # Check win condition
                 if car.lap_count >= self.target_laps:
@@ -159,21 +220,26 @@ class NEATTrainer:
             if alive_count == 0:
                 break
             
-            # Update camera (follow first alive car)
-            for car in cars:
-                if car.is_alive:
-                    camera_x = int(car.pos[0] - self.screen_width / 2)
-                    camera_y = int(car.pos[1] - self.screen_height / 2)
-                    camera_x = max(0, min(camera_x, self.map_width - self.screen_width))
-                    camera_y = max(0, min(camera_y, self.map_height - self.screen_height))
-                    break
+            # Update camera (follow best car by fitness)
+            best_car = None
+            best_fitness = -1
+            for i, (car, net, (genome_id, genome)) in enumerate(zip(cars, nets, genomes)):
+                if car.alive and genome.fitness > best_fitness:
+                    best_fitness = genome.fitness
+                    best_car = car
+            
+            if best_car:
+                camera_x = int(best_car.x - self.screen_width / 2)
+                camera_y = int(best_car.y - self.screen_height / 2)
+                camera_x = max(0, min(camera_x, self.map_width - self.screen_width))
+                camera_y = max(0, min(camera_y, self.map_height - self.screen_height))
             
             # Render
             self._render(cars, camera_x, camera_y, alive_count, len(cars))
             
             self.clock.tick(0)  # Unlimited FPS untuk training cepat
     
-    def _render(self, cars: List[AICar], camera_x: int, camera_y: int,
+    def _render(self, cars: List[Motor], camera_x: int, camera_y: int,
                 alive: int, total: int):
         """Render frame"""
         # Draw track
@@ -181,7 +247,7 @@ class NEATTrainer:
         
         # Draw cars
         for car in cars:
-            if car.is_alive:
+            if car.alive:
                 car.draw(self.screen, camera_x, camera_y)
         
         # Draw info
@@ -194,14 +260,14 @@ class NEATTrainer:
         self.screen.blit(text, rect)
         
         # Best lap info
-        best_lap = max((car.lap_count for car in cars if car.is_alive), default=0)
+        best_lap = max((car.lap_count for car in cars if car.alive), default=0)
         text = self.font_small.render(f"Best Lap: {best_lap}/{self.target_laps}", True, (0, 255, 0))
         rect = text.get_rect(center=(self.screen_width / 2, 240))
         self.screen.blit(text, rect)
         
         pygame.display.flip()
     
-    def _handle_winner(self, genome, net, car: AICar, config):
+    def _handle_winner(self, genome, net, car: Motor, config):
         """Handle ketika ada winner"""
         self.winner_found = True
         
@@ -209,7 +275,7 @@ class NEATTrainer:
         print("🏆 TRAINING BERHASIL! 🏆")
         print(f"Motor menyelesaikan {self.target_laps} lap!")
         print(f"Generation: {self.generation}")
-        print(f"Total distance: {int(car.distance)}")
+        print(f"Total distance: {int(car.distance_traveled)}")
         print(f"Time: {car.time_spent} frames")
         print("=" * 60)
         

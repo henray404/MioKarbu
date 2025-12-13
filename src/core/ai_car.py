@@ -213,14 +213,13 @@ class AICar:
                 pixel = track_surface.get_at((x, y))
                 r, g, b = pixel[0], pixel[1], pixel[2]
                 
-                # Valid: hitam (track), putih (finish), merah (finish alt)
-                # Valid: hitam (track), putih (finish), merah (finish alt)
-                # Widen range to handle antialiasing (gray pixels) - with overlap
-                is_black = (r < 120 and g < 120 and b < 120)
-                is_white = (r > 100 and g > 100 and b > 100)
+                # Track baru: abu-abu = jalan, hijau = off-track
+                is_gray = (abs(r - g) < 50 and abs(g - b) < 50 and abs(r - b) < 50)
+                is_white = (r > 200 and g > 200 and b > 200)
                 is_red = (r > 150 and g < 100 and b < 100)
+                is_green = (g > r + 30 and g > b + 30)
                 
-                if not (is_black or is_white or is_red):
+                if is_green or not (is_gray or is_white or is_red):
                     self.is_alive = False
                     self.collision_count += 1
                     return
@@ -247,11 +246,13 @@ class AICar:
                     pixel = track_surface.get_at((x, y))
                     r, g, b = pixel[0], pixel[1], pixel[2]
                     
-                    is_black = (r < 120 and g < 120 and b < 120)
-                    is_white = (r > 100 and g > 100 and b > 100)
+                    # Track baru: abu-abu = jalan, hijau = off-track
+                    is_gray = (abs(r - g) < 50 and abs(g - b) < 50 and abs(r - b) < 50)
+                    is_white = (r > 200 and g > 200 and b > 200)
                     is_red = (r > 150 and g < 100 and b < 100)
+                    is_green = (g > r + 30 and g > b + 30)
                     
-                    if not (is_black or is_white or is_red):
+                    if is_green or not (is_gray or is_white or is_red):
                         break
                 except:
                     break
