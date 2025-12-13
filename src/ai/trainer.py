@@ -30,8 +30,8 @@ class NEATTrainer:
     """
     
     def __init__(self, config_path: str, track_name: str = "mandalika",
-                 screen_width: int = 1024, screen_height: int = 768,
-                 map_width: int = 1920, map_height: int = 1440):
+                 screen_width: int = 1280, screen_height: int = 960,
+                 map_width: int = 4096, map_height: int = 3072):
         """
         Inisialisasi trainer.
         
@@ -61,10 +61,10 @@ class NEATTrainer:
         self.clock = None
         self.track_surface = None
         
-        # Spawn config
-        self.spawn_x = 600
-        self.spawn_y = 240
-        self.spawn_angle = 0
+        # Spawn config (untuk mandalika 4096x3072)
+        self.spawn_x = 1300
+        self.spawn_y = 500
+        self.spawn_angle = 90  # Hadap ke bawah
         
         # Win condition
         self.target_laps = 15

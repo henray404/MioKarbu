@@ -28,7 +28,7 @@ class Motor:
         self.acceleration_rate = 0.56  # 30% lebih lambat (0.8 * 0.7)
         self.friction = 0.98
         self.steering_rate = 3  # derajat per frame
-        self.max_speed = 2.8  # 30% lebih lambat (4 * 0.7)
+        self.max_speed = 12  # 30% lebih lambat (4 * 0.7)
         self.length = 92  # 15% lebih besar (80 * 1.15)
         self.width = 46   # 15% lebih besar (40 * 1.15)
         
@@ -72,8 +72,9 @@ class Motor:
         self.input_offset = 0
         self.steering_input = 0
         
-        # Track reference untuk collision
+        # Track reference untuk collision (Track object atau pygame.Surface)
         self.track = None
+        self.track_surface = None  # Direct pygame.Surface for pixel collision
         
         # Sensor untuk AI (composition pattern)
         self.sensor: Optional[DistanceSensor] = None
@@ -81,6 +82,38 @@ class Motor:
         # Status untuk AI/RL
         self.alive = True
         self.distance_traveled = 0
+        
+        # Lap counting (untuk racing mode)
+        self.start_x = x
+        self.start_y = y
+        self.start_angle = 0
+        self.lap_count = 0
+        self.total_rotation = 0
+        self.has_left_start = False
+        self.lap_cooldown = 0
+        
+        # AI Radar System (built-in, no external sensor needed)
+        self.radars: List[Tuple[Tuple[int, int], int]] = []
+        self.num_radars = 5
+        self.radar_angles = [-90, -45, 0, 45, 90]  # Derajat relatif ke arah hadap
+        self.max_radar_length = 300
+        
+        # AI Fitness tracking
+        self.time_spent = 0
+        self.unique_positions = set()
+        self.last_grid_pos = None
+        self.consecutive_same_pos = 0
+        self.max_distance_reached = 0
+        self.prev_x = x
+        self.prev_y = y
+        self.stuck_timer = 0
+        self.collision_count = 0
+        
+        # Compatibility alias
+        self.is_alive = self.alive  # For backward compatibility with AICar code
+        
+        # Invincible mode (untuk player - tidak mati kalau keluar track)
+        self.invincible = False
 
     def set_track(self, track):
         """Set track untuk collision detection berbasis pixel"""
@@ -88,6 +121,10 @@ class Motor:
         # Update sensor track juga jika ada
         if self.sensor is not None:
             self.sensor.set_track(track)
+    
+    def set_track_surface(self, surface: pygame.Surface):
+        """Set pygame.Surface langsung untuk collision detection (alternatif dari Track object)"""
+        self.track_surface = surface
     
     def set_sensor(self, sensor: DistanceSensor):
         """
@@ -172,16 +209,180 @@ class Motor:
         """
         return (self.x, self.y, self.angle, self.velocity, self.alive)
     
-    def reset(self, x: float, y: float, angle: float = 0):
+    def reset(self, x: float = None, y: float = None, angle: float = None):
         """Reset motor ke posisi awal"""
-        self.x = x
-        self.y = y
-        self.angle = angle
+        self.x = x if x is not None else self.start_x
+        self.y = y if y is not None else self.start_y
+        self.angle = angle if angle is not None else self.start_angle
         self.velocity = 0
         self.alive = True
+        self.is_alive = True  # Sync alias
         self.distance_traveled = 0
         self.drift_angle = 0
         self.is_drifting = False
+        # Reset lap counting
+        self.lap_count = 0
+        self.total_rotation = 0
+        self.has_left_start = False
+        self.lap_cooldown = 0
+        # Reset AI tracking
+        self.time_spent = 0
+        self.unique_positions.clear()
+        self.consecutive_same_pos = 0
+        self.max_distance_reached = 0
+        self.stuck_timer = 0
+        self.collision_count = 0
+        self.radars.clear()
+    
+    def steer(self, direction: int):
+        """
+        Belokkan motor (untuk AI control).
+        Kompatibel dengan model AI yang sudah di-train dengan AICar.
+        
+        Args:
+            direction: -1 (kanan), 0 (lurus), 1 (kiri)
+        """
+        prev_angle = self.angle
+        steer_amount = math.radians(7)  # ~7 derajat per frame
+        
+        # Arah terbalik dari handle_input karena AI model di-train dengan AICar
+        # yang punya sistem koordinat berbeda
+        if direction == 1:
+            self.angle -= steer_amount  # Belok kiri di sistem AICar
+        elif direction == -1:
+            self.angle += steer_amount  # Belok kanan di sistem AICar
+        # direction == 0: lurus
+        
+        # Track rotation untuk lap detection
+        angle_change = abs(self.angle - prev_angle)
+        self.total_rotation += math.degrees(angle_change)
+    
+    def _update_radars(self, track_surface: pygame.Surface):
+        """Update sensor radar (built-in, tanpa DistanceSensor)
+        
+        Kompatibel dengan AICar yang pakai sistem 360-angle
+        """
+        self.radars.clear()
+        
+        # Convert angle dari radians ke degrees
+        # Gunakan sistem 360-angle seperti AICar untuk kompatibilitas
+        angle_deg = 360 - math.degrees(self.angle)
+        
+        for degree in self.radar_angles:
+            length = 0
+            x = int(self.x)
+            y = int(self.y)
+            
+            # Raycast sampai ketemu batas atau max length
+            while length < self.max_radar_length:
+                # Hitung posisi titik radar (pakai sistem 360-angle)
+                radar_angle = math.radians(360 - (angle_deg + degree))
+                x = int(self.x + math.cos(radar_angle) * length)
+                y = int(self.y + math.sin(radar_angle) * length)
+                
+                try:
+                    if x < 0 or x >= track_surface.get_width() or \
+                       y < 0 or y >= track_surface.get_height():
+                        break
+                    
+                    pixel = track_surface.get_at((x, y))
+                    r, g, b = pixel[0], pixel[1], pixel[2]
+                    
+                    # Check jika pixel adalah jalan
+                    is_black = (r < 120 and g < 120 and b < 120)
+                    is_white = (r > 100 and g > 100 and b > 100)
+                    is_red = (r > 150 and g < 100 and b < 100)
+                    
+                    if not (is_black or is_white or is_red):
+                        break
+                except:
+                    break
+                
+                length += 5  # Step 5 pixel untuk performa
+            
+            dist = int(math.sqrt((x - self.x)**2 + (y - self.y)**2))
+            self.radars.append(((x, y), dist))
+    
+    def get_radar_data(self) -> List[int]:
+        """
+        Get normalized radar data untuk neural network.
+        
+        Returns:
+            List of 5 values (0-10 scale)
+        """
+        data = [0] * self.num_radars
+        for i, radar in enumerate(self.radars):
+            if i < len(data):
+                data[i] = int(radar[1] / 30)  # Normalize to 0-10 range
+        return data
+    
+    def get_fitness(self) -> float:
+        """
+        Calculate fitness score untuk AI training.
+        
+        Returns:
+            Fitness value
+        """
+        # Belum complete lap: fokus exploration
+        if self.lap_count == 0:
+            novelty_score = len(self.unique_positions)
+            if novelty_score < 5:
+                return -100
+            
+            base_reward = novelty_score * 10
+            rotation_reward = min(self.total_rotation / 2.0, 200)
+            distance_reward = self.distance_traveled / 50.0
+            repetition_penalty = self.consecutive_same_pos * -20
+            
+            return base_reward + rotation_reward + distance_reward + repetition_penalty
+        
+        # Sudah complete lap: optimize
+        else:
+            lap_bonus = (self.lap_count ** 2) * 1000
+            efficiency = self.distance_traveled / max(self.time_spent, 1)
+            efficiency_bonus = efficiency * 50
+            novelty_bonus = len(self.unique_positions) * 3
+            
+            return lap_bonus + efficiency_bonus + novelty_bonus
+    
+    def get_speed_kmh(self) -> int:
+        """Get current speed in km/h for speedometer display"""
+        # Convert internal velocity to km/h (scale factor for display)
+        return int(abs(self.velocity) * 15)  # Scale factor for display
+    
+    def _get_collision_corners(self) -> List[tuple]:
+        """Get 4 corner points of motor for collision detection"""
+        length, width = self.length * 0.4, self.width * 0.4  # Smaller hitbox
+        
+        corners = []
+        for dx, dy in [(-length/2, -width/2), (length/2, -width/2), 
+                       (length/2, width/2), (-length/2, width/2)]:
+            rx = dx * math.cos(self.angle) - dy * math.sin(self.angle)
+            ry = dx * math.sin(self.angle) + dy * math.cos(self.angle)
+            corners.append((self.x + rx, self.y + ry))
+        
+        return corners
+    
+    def _check_lap(self):
+        """Check lap completion"""
+        if self.lap_cooldown > 0:
+            self.lap_cooldown -= 1
+            return
+        
+        dist_from_start = math.sqrt(
+            (self.x - self.start_x)**2 + 
+            (self.y - self.start_y)**2
+        )
+        
+        if dist_from_start > 300:
+            self.has_left_start = True
+        elif self.has_left_start and dist_from_start < 80:
+            if self.total_rotation >= 300:
+                self.lap_count += 1
+                print(f"[PLAYER] Lap {self.lap_count} completed!")
+                self.lap_cooldown = 60
+            self.has_left_start = False
+            self.total_rotation = 0
 
     def handle_input(self, keys):
         """Kendali manual player dengan kontrol relatif dan drift (standard racing game)"""
@@ -257,7 +458,7 @@ class Motor:
         # Collision detection
         collided = False
         
-        # Prioritas 1: Pixel-based collision dari Track
+        # Prioritas 1: Pixel-based collision dari Track object
         if self.track is not None:
             # Check collision dengan pixel di posisi baru
             # Pakai collision box yang lebih kecil untuk akurasi
@@ -281,7 +482,43 @@ class Motor:
                 self.x = new_x
                 self.y = new_y
         
-        # Prioritas 2: Legacy rect-based collision
+        # Prioritas 2: Pixel-based collision dari pygame.Surface langsung
+        elif self.track_surface is not None:
+            self.x = new_x
+            self.y = new_y
+            
+            # Check collision di 4 sudut motor
+            corners = self._get_collision_corners()
+            for corner in corners:
+                cx, cy = int(corner[0]), int(corner[1])
+                
+                # Boundary check
+                if cx < 0 or cx >= self.track_surface.get_width() or \
+                   cy < 0 or cy >= self.track_surface.get_height():
+                    if not self.invincible:
+                        self.alive = False
+                    collided = True
+                    break
+                
+                # Color check - hitam = track, putih/merah = finish
+                color = self.track_surface.get_at((cx, cy))
+                r, g, b = color[0], color[1], color[2]
+                
+                # Widen range to handle antialiasing (gray pixels)
+                is_black = (r < 120 and g < 120 and b < 120)
+                is_white = (r > 100 and g > 100 and b > 100)
+                is_red = (r > 150 and g < 100 and b < 100)
+                
+                if not (is_black or is_white or is_red):
+                    if not self.invincible:
+                        self.alive = False
+                    else:
+                        # Speed penalty untuk invincible player
+                        self.velocity *= 0.915
+                    collided = True
+                    break
+        
+        # Prioritas 3: Legacy rect-based collision
         elif walls is not None:
             self.x = new_x
             self.y = new_y
@@ -330,6 +567,65 @@ class Motor:
         if not collided:
             distance = math.sqrt((self.x - prev_x)**2 + (self.y - prev_y)**2)
             self.distance_traveled += distance
+        
+        # Track rotation untuk lap detection
+        prev_angle_deg = math.degrees(prev_angle) if 'prev_angle' in dir() else 0
+        angle_diff = math.degrees(self.angle) - prev_angle_deg
+        if angle_diff > 180:
+            angle_diff -= 360
+        elif angle_diff < -180:
+            angle_diff += 360
+        self.total_rotation += abs(angle_diff)
+        
+        # Check lap completion
+        self._check_lap()
+        
+        # Update radars untuk AI (jika track_surface ada)
+        if self.track_surface is not None:
+            self._update_radars(self.track_surface)
+        
+        # AI tracking: time, novelty, stuck detection
+        self.time_spent += 1
+        self.max_distance_reached = max(self.max_distance_reached, self.distance_traveled)
+        
+        # Novelty tracking (grid-based)
+        if self.time_spent % 10 == 0:
+            grid_pos = (int(self.x / 50), int(self.y / 50))
+            self.unique_positions.add(grid_pos)
+            
+            dist_from_start = math.sqrt(
+                (self.x - self.start_x)**2 + 
+                (self.y - self.start_y)**2
+            )
+            near_finish = dist_from_start < 120
+            
+            if grid_pos == self.last_grid_pos and not near_finish:
+                self.consecutive_same_pos += 1
+                if self.consecutive_same_pos > 5 and not self.invincible:
+                    self.alive = False
+                    self.is_alive = False
+            else:
+                self.consecutive_same_pos = 0
+            
+            self.last_grid_pos = grid_pos
+        
+        # Stuck detection
+        pos_change = math.sqrt((self.x - self.prev_x)**2 + (self.y - self.prev_y)**2)
+        dist_from_start = math.sqrt((self.x - self.start_x)**2 + (self.y - self.start_y)**2)
+        near_finish = dist_from_start < 120
+        
+        if pos_change < 3 and not near_finish:
+            self.stuck_timer += 1
+            if self.stuck_timer > 30 and not self.invincible:
+                self.alive = False
+                self.is_alive = False
+        else:
+            self.stuck_timer = 0
+        
+        self.prev_x, self.prev_y = self.x, self.y
+        
+        # Sync is_alive alias
+        self.is_alive = self.alive
        
         # Update rect untuk drawing
         if self.use_sprite:
@@ -339,8 +635,22 @@ class Motor:
         rotated_motor = pygame.transform.rotate(current_surface, -math.degrees(self.angle))
         self.rect = rotated_motor.get_rect(center=(self.x, self.y))
 
-    def draw(self, screen, camera):
-        """Render motor dengan animasi"""
+    def draw(self, screen, camera_or_x, camera_y: int = None):
+        """Render motor dengan animasi
+        
+        Args:
+            screen: pygame display surface
+            camera_or_x: Either a camera object with .x/.y attributes, or an int for x offset
+            camera_y: If camera_or_x is int, this is the y offset
+        """
+        # Support both camera object and offset integers
+        if camera_y is not None:
+            # Called as draw(screen, camera_x, camera_y)
+            cam_x, cam_y = camera_or_x, camera_y
+        else:
+            # Called as draw(screen, camera) where camera has .x and .y
+            cam_x, cam_y = camera_or_x.x, camera_or_x.y
+        
         # pilih frame saat ini
         if self.use_sprite:
             current_surface = self.frames[self.current_frame]
@@ -349,5 +659,5 @@ class Motor:
         
         # rotasi dan render dengan offset kamera
         rotated_motor = pygame.transform.rotate(current_surface, -math.degrees(self.angle))
-        rect = rotated_motor.get_rect(center=(self.x - camera.x, self.y - camera.y))
+        rect = rotated_motor.get_rect(center=(self.x - cam_x, self.y - cam_y))
         screen.blit(rotated_motor, rect)

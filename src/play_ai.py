@@ -94,31 +94,32 @@ def main():
     
     # Initialize pygame
     pygame.init()
-    screen_width, screen_height = 1024, 768
-    map_width, map_height = 1920, 1440
+    screen_width, screen_height = 1280, 960
     
     screen = pygame.display.set_mode((screen_width, screen_height))
     pygame.display.set_caption("Tabrak Bahlil - AI Demo")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("Arial", 30)
     
-    # Load track
+    # Load track (use actual size, no scaling)
     track_path = os.path.join(BASE_DIR, "assets", "tracks", f"{args.track}.png")
     if not os.path.exists(track_path):
         print(f"ERROR: Track tidak ditemukan: {track_path}")
         sys.exit(1)
     
     track_surface = pygame.image.load(track_path)
-    track_surface = pygame.transform.scale(track_surface, (map_width, map_height))
+    map_width, map_height = track_surface.get_size()
+    print(f"Map Size: {map_width}x{map_height}")
     
     # Load AI
     net, genome, config = load_ai(model_path, config_path)
     fitness = getattr(genome, 'fitness', 0) or 0
     print(f"AI loaded! Fitness: {fitness:.2f}")
     
-    # Create car
-    spawn_x, spawn_y = 600, 240
-    car = AICar(spawn_x, spawn_y)
+    # Create car (spawn position untuk mandalika)
+    spawn_x, spawn_y = 1300, 500
+    spawn_angle = 90
+    car = AICar(spawn_x, spawn_y, spawn_angle)
     
     # Camera
     camera_x, camera_y = 0, 0

@@ -1,12 +1,24 @@
 """
-AI Car untuk NEAT Training
-==========================
+AI Car untuk NEAT Training (DEPRECATED)
+=======================================
 
-Car class khusus untuk AI training dengan:
-- Sensor radar terintegrasi
+⚠️ DEPRECATED: Class ini sudah deprecated.
+Gunakan `Motor` dari `core.motor` yang sudah unified dengan semua fitur:
+- Player control (WASD)
+- AI control (steer, get_radar_data, get_fitness)
 - Lap detection
-- Fitness calculation
-- Collision detection berbasis pixel
+- Collision detection
+
+Contoh:
+    from core.motor import Motor
+    ai = Motor(x, y, color="pink")
+    ai.set_track_surface(track_surface)
+    ai.velocity = ai.max_speed
+    ai.steer(1)  # Belok kiri
+    ai.update()
+    
+Class ini masih disimpan untuk backward compatibility dengan
+model training lama. Untuk project baru, gunakan Motor.
 """
 
 import pygame
@@ -31,8 +43,8 @@ class AICar:
         lap_count: jumlah lap selesai
     """
     
-    def __init__(self, start_x: float = 600, start_y: float = 240, 
-                 start_angle: float = 0, speed: float = 6):
+    def __init__(self, start_x: float = 1300, start_y: float = 500, 
+                 start_angle: float = 90, speed: float = 6):
         """
         Inisialisasi AI Car.
         
@@ -202,9 +214,11 @@ class AICar:
                 r, g, b = pixel[0], pixel[1], pixel[2]
                 
                 # Valid: hitam (track), putih (finish), merah (finish alt)
-                is_black = (r < 70 and g < 70 and b < 70)
-                is_white = (r > 120 and g > 120 and b > 120)
-                is_red = (r > 120 and g < 100 and b < 100)
+                # Valid: hitam (track), putih (finish), merah (finish alt)
+                # Widen range to handle antialiasing (gray pixels) - with overlap
+                is_black = (r < 120 and g < 120 and b < 120)
+                is_white = (r > 100 and g > 100 and b > 100)
+                is_red = (r > 150 and g < 100 and b < 100)
                 
                 if not (is_black or is_white or is_red):
                     self.is_alive = False
@@ -233,9 +247,9 @@ class AICar:
                     pixel = track_surface.get_at((x, y))
                     r, g, b = pixel[0], pixel[1], pixel[2]
                     
-                    is_black = (r < 50 and g < 50 and b < 50)
-                    is_white = (r > 180 and g > 180 and b > 180)
-                    is_red = (r > 200 and g < 100 and b < 100)
+                    is_black = (r < 120 and g < 120 and b < 120)
+                    is_white = (r > 100 and g > 100 and b > 100)
+                    is_red = (r > 150 and g < 100 and b < 100)
                     
                     if not (is_black or is_white or is_red):
                         break

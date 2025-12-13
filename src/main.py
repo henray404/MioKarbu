@@ -1,68 +1,406 @@
+"""
+Tabrak Bahlil - Player vs AI Mode
+=================================
+
+Main bareng AI! Player pakai WASD, AI otomatis.
+
+Cara pakai:
+    python main.py                           # Default model & track
+    python main.py --model winner_genome.pkl # Pilih model AI
+    python main.py --track mandalika         # Pilih track
+    python main.py --ai-count 3              # Jumlah AI opponent
+"""
+
+import os
+import sys
+import math
+import pickle
+import neat
 import pygame
+from typing import List, Optional
+
+# Setup path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(BASE_DIR, "src"))
+
 from core.motor import Motor
-from core.track import Track
-from core.camera import create_screen, update_camera, camera
+
+# Constants
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+
+
+
+def load_ai(model_path: str, config_path: str):
+    """Load trained genome dan buat neural network"""
+    config = neat.Config(
+        neat.DefaultGenome,
+        neat.DefaultReproduction,
+        neat.DefaultSpeciesSet,
+        neat.DefaultStagnation,
+        config_path
+    )
+    
+    with open(model_path, 'rb') as f:
+        genome = pickle.load(f)
+    
+    net = neat.nn.FeedForwardNetwork.create(genome, config)
+    return net, genome, config
+
 
 def main():
-    pygame.init()
+    import argparse
     
-    # Setup screen
-    screen_width = 1024
-    screen_height = 768
-    screen = create_screen(screen_width, screen_height, "Mio-Mber")
+    parser = argparse.ArgumentParser(description="Tabrak Bahlil - Player vs AI")
+    
+    parser.add_argument(
+        '--model', '-m',
+        type=str,
+        default='winner_genome.pkl',
+        help='Nama file model AI (default: winner_genome.pkl)'
+    )
+    
+    parser.add_argument(
+        '--track', '-t',
+        type=str,
+        default='new',
+        help='Nama track (default: mandalika)'
+    )
+    
+    parser.add_argument(
+        '--ai-count', '-n',
+        type=int,
+        default=1,
+        help='Jumlah AI opponent (default: 1)'
+    )
+    
+    parser.add_argument(
+        '--target-laps', '-l',
+        type=int,
+        default=3,
+        help='Target lap untuk menang (default: 3)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Paths
+    config_path = os.path.join(BASE_DIR, "config.txt")
+    track_path = os.path.join(ASSETS_DIR, "tracks", f"{args.track}.png")
+    
+    # Find model
+    possible_paths = [
+        os.path.join(BASE_DIR, "models", args.model),
+        os.path.join(BASE_DIR, args.model),
+    ]
+    
+    model_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            model_path = path
+            break
+    
+    if model_path is None:
+        print(f"ERROR: Model tidak ditemukan!")
+        print(f"Coba lokasi: {possible_paths}")
+        print("\nPastikan sudah menjalankan training dulu!")
+        sys.exit(1)
+    
+    print("=" * 55)
+    print("  TABRAK BAHLIL - Player vs AI")
+    print("=" * 55)
+    print(f"Track      : {args.track}")
+    print(f"AI Model   : {model_path}")
+    print(f"AI Count   : {args.ai_count}")
+    print(f"Target Lap : {args.target_laps}")
+    print("=" * 55)
+    print()
+    print("Controls:")
+    print("  W/S   - Maju/Mundur")
+    print("  A/D   - Belok Kiri/Kanan")
+    print("  R     - Reset")
+    print("  ESC   - Quit")
+    print()
+    
+    # Initialize pygame
+    pygame.init()
+    screen_width, screen_height = 1280, 960
+    
+    screen = pygame.display.set_mode((screen_width, screen_height))
+    pygame.display.set_caption("Tabrak Bahlil - Player vs AI")
     clock = pygame.time.Clock()
     
-    # Map size (lebih besar dari layar)
-    map_width = 1920
-    map_height = 1440
+    # Load track dan get actual size
+    track_surface = pygame.image.load(track_path)
     
-    # Load track dengan ukuran map
-    track = Track("japan", map_width, map_height)
+    # Scale track (perbesar 2x)
+    track_scale = 5.0  # Ubah nilai ini untuk scale yang berbeda
+    original_width, original_height = track_surface.get_size()
+    track_surface = pygame.transform.scale(
+        track_surface, 
+        (int(original_width * track_scale), int(original_height * track_scale))
+    )
     
-    # Buat motor player di tengah map
-    player = Motor(map_width // 2, map_height // 2, color="pink")
+    map_width, map_height = track_surface.get_size()
+    print(f"Map Size   : {map_width}x{map_height} (scaled {track_scale}x)")
     
-    # Dinding pembatas map (bukan screen)
-    wall_thickness = 1
-    walls = [
-        pygame.Rect(0, 0, map_width, wall_thickness),  # atas
-        pygame.Rect(0, map_height - wall_thickness, map_width, wall_thickness),  # bawah
-        pygame.Rect(0, 0, wall_thickness, map_height),  # kiri
-        pygame.Rect(map_width - wall_thickness, 0, wall_thickness, map_height),  # kanan
-    ]
-
+    # Font
+    font_large = pygame.font.Font(None, 48)
+    font_small = pygame.font.Font(None, 32)
+    
+    # Spawn positions (di-scale sesuai track)
+    # Base position pada track original
+    base_spawn_x, base_spawn_y = 1300, 500
+    spawn_x = int(base_spawn_x * track_scale)
+    spawn_y = int(base_spawn_y * track_scale)
+    spawn_angle = 90  # Hadap ke bawah
+    
+    # Create player (spawn di depan)
+    player = Motor(spawn_x, spawn_y, color="pink")
+    player.angle = math.pi  # π radians = menghadap kiri (180°)
+    player.start_angle = player.angle
+    player.set_track_surface(track_surface)  # Set collision surface
+    player.invincible = True  # Player tidak bisa mati
+    
+    # Create AI opponents (spawn di samping player)
+    ai_cars: List[Motor] = []
+    ai_nets: List[neat.nn.FeedForwardNetwork] = []
+    
+    for i in range(args.ai_count):
+        # Spawn AI di samping player (sejajar, bukan di belakang)
+        offset_x = 0  # Sejajar dengan player
+        offset_y = 80 * (i + 1)  # Di bawah player
+        
+        # Create AI Motor (same class as player, different color)
+        ai_car = Motor(spawn_x + offset_x, spawn_y + offset_y, color="pink")
+        # Convert angle untuk kompatibilitas dengan AI model yang di-train dengan AICar
+        # AICar pakai: cos(radians(360 - angle_deg)) → yang setara dengan cos(-radians(angle_deg))
+        ai_car.angle = -math.radians(spawn_angle)
+        ai_car.start_angle = ai_car.angle
+        ai_car.set_track_surface(track_surface)
+        ai_car.velocity = 0  # Start diam dulu, nanti jalan setelah countdown
+        
+        net, _, _ = load_ai(model_path, config_path)
+        
+        ai_cars.append(ai_car)
+        ai_nets.append(net)
+    
+    # Camera
+    camera_x, camera_y = 0, 0
+    
+    # Game state
+    winner = None
+    game_over = False
+    
+    # Countdown state
+    countdown_timer = 3 * 60  # 3 seconds at 60 FPS
+    countdown_active = True
+    race_started = False
+    
+    # Main loop
     running = True
     while running:
-        dt = clock.tick(60) / 1000
-        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_r:
+                    # Reset semua
+                    player.reset()
+                    player.angle = 0  # Reset to facing right
+                    for ai_car in ai_cars:
+                        ai_car.reset()
+                        ai_car.velocity = 0
+                    winner = None
+                    game_over = False
+                    countdown_timer = 3 * 60  # Reset countdown
+                    countdown_active = True
+                    race_started = False
+                    print("\n[GAME] Reset!")
         
-        # Input dan update motor
-        keys = pygame.key.get_pressed()
-        player.handle_input(keys)
-        player.update(walls)
+        # Countdown logic
+        if countdown_active:
+            countdown_timer -= 1
+            if countdown_timer <= 0:
+                countdown_active = False
+                race_started = True
+                print("[GAME] GO!")
         
-        # Update kamera untuk mengikuti motor
-        update_camera(player.x, player.y, map_width, map_height)
-
+        if not game_over and race_started:
+            # Update player
+            keys = pygame.key.get_pressed()
+            if player.alive:
+                player.handle_input(keys)
+                player.update()  # Uses self.track_surface internally
+                
+                # Check win
+                if player.lap_count >= args.target_laps:
+                    winner = "PLAYER"
+                    game_over = True
+                    print(f"\n[GAME] PLAYER WINS!")
+            
+            # Update AI
+            for i, (ai_car, net) in enumerate(zip(ai_cars, ai_nets)):
+                if not ai_car.alive:
+                    continue
+                
+                # Keep AI at constant speed
+                ai_car.velocity = ai_car.max_speed
+                
+                # Get radar dan neural network decision
+                radar_data = ai_car.get_radar_data()
+                output = net.activate(radar_data)
+                action = output.index(max(output))
+                
+                # Steer
+                if action == 0:
+                    ai_car.steer(1)
+                elif action == 2:
+                    ai_car.steer(-1)
+                
+                ai_car.update()  # Motor.update() uses internal track_surface
+                
+                # Check win
+                if ai_car.lap_count >= args.target_laps:
+                    winner = f"AI-{i+1}"
+                    game_over = True
+                    print(f"\n[GAME] AI-{i+1} WINS!")
+        
+        # Camera follow player
+        if player.alive:
+            camera_x = int(player.x - screen_width / 2)
+            camera_y = int(player.y - screen_height / 2)
+        else:
+            # Follow first alive AI
+            for ai_car in ai_cars:
+                if ai_car.alive:
+                    camera_x = int(ai_car.x - screen_width / 2)
+                    camera_y = int(ai_car.y - screen_height / 2)
+                    break
+        
+        # Clamp camera
+        camera_x = max(0, min(camera_x, map_width - screen_width))
+        camera_y = max(0, min(camera_y, map_height - screen_height))
+        
         # Render
-        screen.fill((30, 30, 30))  # background hitam sebagai fallback
-        track.draw(screen, camera)  # gambar track dengan offset kamera
+        screen.blit(track_surface, (-camera_x, -camera_y))
         
-        # Gambar dinding jika ada (dengan offset kamera)
-        for wall in walls:
-            screen_wall = pygame.Rect(wall.x - camera.x, wall.y - camera.y, wall.width, wall.height)
-            pygame.draw.rect(screen, (200, 200, 200), screen_wall)
-
-        player.draw(screen, camera)  # gambar motor dengan offset kamera
+        # Draw AI cars
+        for ai_car in ai_cars:
+            if ai_car.alive:
+                ai_car.draw(screen, camera_x, camera_y)
+        
+        # Draw player
+        if player.alive:
+            player.draw(screen, camera_x, camera_y)
+        
+        # Draw countdown if active
+        if countdown_active or (not race_started):
+            # Semi-transparent overlay
+            overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 100))
+            screen.blit(overlay, (0, 0))
+            
+            # Countdown number
+            countdown_seconds = (countdown_timer // 60) + 1
+            if countdown_seconds > 0:
+                countdown_text = str(countdown_seconds)
+                font_countdown = pygame.font.Font(None, 200)
+                text_surface = font_countdown.render(countdown_text, True, (255, 255, 0))
+                text_rect = text_surface.get_rect(center=(screen_width // 2, screen_height // 2))
+                screen.blit(text_surface, text_rect)
+        
+        # "GO!" flash for first 30 frames after race starts
+        elif race_started and countdown_timer > -30:
+            font_go = pygame.font.Font(None, 200)
+            go_surface = font_go.render("GO!", True, (0, 255, 0))
+            go_rect = go_surface.get_rect(center=(screen_width // 2, screen_height // 2))
+            screen.blit(go_surface, go_rect)
+            countdown_timer -= 1
+        
+        # UI - Background
+        pygame.draw.rect(screen, (0, 0, 0, 180), (10, 10, 250, 150))
+        
+        # UI - Player info
+        color_player = (0, 255, 0) if player.alive else (255, 0, 0)
+        status = "ALIVE" if player.alive else "DEAD"
+        text = font_small.render(f"PLAYER [{status}]", True, color_player)
+        screen.blit(text, (20, 20))
+        text = font_small.render(f"  Lap: {player.lap_count}/{args.target_laps}", True, (255, 255, 255))
+        screen.blit(text, (20, 50))
+        
+        # UI - AI info
+        y_offset = 90
+        for i, ai_car in enumerate(ai_cars):
+            color_ai = (255, 165, 0) if ai_car.alive else (100, 100, 100)
+            status = "ALIVE" if ai_car.alive else "DEAD"
+            text = font_small.render(f"AI-{i+1} [{status}]", True, color_ai)
+            screen.blit(text, (20, y_offset))
+            text = font_small.render(f"  Lap: {ai_car.lap_count}/{args.target_laps}", True, (255, 255, 255))
+            screen.blit(text, (20, y_offset + 25))
+            y_offset += 60
+        
+        # UI - Winner announcement
+        if game_over and winner:
+            # Semi-transparent overlay
+            overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 150))
+            screen.blit(overlay, (0, 0))
+            
+            # Winner text
+            win_color = (0, 255, 0) if winner == "PLAYER" else (255, 165, 0)
+            text = font_large.render(f"{winner} WINS!", True, win_color)
+            rect = text.get_rect(center=(screen_width / 2, screen_height / 2 - 30))
+            screen.blit(text, rect)
+            
+            text = font_small.render("Press R to restart, ESC to quit", True, (255, 255, 255))
+            rect = text.get_rect(center=(screen_width / 2, screen_height / 2 + 30))
+            screen.blit(text, rect)
+        
+        # UI - Speedometer (bottom right)
+        speed_kmh = player.get_speed_kmh()
+        max_display_speed = 180  # Max display speed for the bar
+        
+        # Speedometer background
+        speedo_width, speedo_height = 200, 60
+        speedo_x = screen_width - speedo_width - 20
+        speedo_y = screen_height - speedo_height - 60
+        
+        # Draw background panel
+        speedo_bg = pygame.Surface((speedo_width, speedo_height), pygame.SRCALPHA)
+        speedo_bg.fill((0, 0, 0, 180))
+        screen.blit(speedo_bg, (speedo_x, speedo_y))
+        
+        # Draw speed bar
+        bar_width = int((speed_kmh / max_display_speed) * (speedo_width - 20))
+        bar_width = min(bar_width, speedo_width - 20)  # Cap at max
+        
+        # Color gradient: green -> yellow -> red
+        speed_ratio = min(speed_kmh / max_display_speed, 1.0)
+        if speed_ratio < 0.5:
+            bar_color = (int(speed_ratio * 2 * 255), 255, 0)  # Green to Yellow
+        else:
+            bar_color = (255, int((1 - speed_ratio) * 2 * 255), 0)  # Yellow to Red
+        
+        pygame.draw.rect(screen, bar_color, (speedo_x + 10, speedo_y + 35, bar_width, 15))
+        pygame.draw.rect(screen, (255, 255, 255), (speedo_x + 10, speedo_y + 35, speedo_width - 20, 15), 1)
+        
+        # Draw speed text
+        speed_text = font_large.render(f"{speed_kmh}", True, (255, 255, 255))
+        screen.blit(speed_text, (speedo_x + 15, speedo_y + 2))
+        
+        kmh_text = font_small.render("km/h", True, (180, 180, 180))
+        screen.blit(kmh_text, (speedo_x + 75, speedo_y + 12))
+        
+        # Controls hint
+        text = font_small.render("WASD: Move | R: Reset | ESC: Quit", True, (200, 200, 200))
+        screen.blit(text, (screen_width - 350, screen_height - 40))
+        
         pygame.display.flip()
-
-        # Update caption dengan info kecepatan
-        pygame.display.set_caption(f"Mio-Mber | Speed: {player.velocity:.2f} | FPS: {clock.get_fps():.0f}")
-
+        clock.tick(60)
+    
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()
