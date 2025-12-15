@@ -18,17 +18,19 @@ import pickle
 import neat
 import pygame
 from typing import List, Optional
+from screens.main_menu import MainMenuScreen
 
 # Setup path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "src"))
+sys.path.insert(0, os.path.join(BASE_DIR, "screens"))
+
 
 from core.motor import Motor
 
 # Constants
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-
-
+UI_DIR = os.path.join(BASE_DIR, "assets", "ui")
 
 def load_ai(model_path: str, config_path: str):
     """Load trained genome dan buat neural network"""
@@ -50,7 +52,7 @@ def load_ai(model_path: str, config_path: str):
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="Tabrak Bahlil - Player vs AI")
+    parser = argparse.ArgumentParser(description="Mio Karbu - Player vs AI")
     
     parser.add_argument(
         '--model', '-m',
@@ -123,9 +125,8 @@ def main():
     # Initialize pygame
     pygame.init()
     screen_width, screen_height = 1280, 960
-    
     screen = pygame.display.set_mode((screen_width, screen_height))
-    pygame.display.set_caption("Tabrak Bahlil - Player vs AI")
+    pygame.display.set_caption("Mio Karbu")
     clock = pygame.time.Clock()
     
     # Load track dan get actual size
@@ -229,6 +230,29 @@ def main():
     countdown_active = True
     race_started = False
     
+    menu_screen = MainMenuScreen(None, (screen_width, screen_height), UI_DIR)
+    
+    in_menu = True
+    while in_menu:
+        dt = clock.tick(60) / 1000.0
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            # Lempar event ke menu
+            menu_screen.handle_event(event)
+        
+        # Cek hasil pilihan menu
+        if menu_screen.result == "PLAY":
+            in_menu = False # Keluar dari loop menu, LANJUT ke game
+        elif menu_screen.result == "EXIT":
+            pygame.quit()
+            sys.exit()
+            
+        menu_screen.draw(screen)
+        pygame.display.flip()
+
     # Main loop
     running = True
     while running:
