@@ -31,7 +31,8 @@ class NEATTrainer:
     
     def __init__(self, config_path: str, track_name: str = "mandalika",
                  screen_width: int = 1280, screen_height: int = 960,
-                 map_width: int = 16512, map_height: int = 9216):  # Sama dengan main.py (6x scale)
+                 map_width: int = 16512, map_height: int = 9216,
+                 headless: bool = False, render_interval: int = 1):  # Sama dengan main.py (6x scale)
         """
         Inisialisasi trainer.
         
@@ -40,6 +41,8 @@ class NEATTrainer:
             track_name: Nama track (tanpa .png)
             screen_width, screen_height: Ukuran window
             map_width, map_height: Ukuran map
+            headless: Jika True, training tanpa visualisasi (lebih cepat)
+            render_interval: Render setiap N frame (1=setiap frame, 10=setiap 10 frame)
         """
         self.config_path = config_path
         self.track_name = track_name
@@ -47,6 +50,8 @@ class NEATTrainer:
         self.screen_height = screen_height
         self.map_width = map_width
         self.map_height = map_height
+        self.headless = headless
+        self.render_interval = max(1, render_interval)  # Minimal 1
         
         # Track path
         self.track_path = os.path.join(BASE_DIR, "assets", "tracks", f"{track_name}.png")
@@ -75,9 +80,23 @@ class NEATTrainer:
     
     def setup(self):
         """Initialize pygame dan load track"""
+        if self.headless:
+            # Set dummy video driver untuk headless mode
+            # Ini memungkinkan convert_alpha() bisa dipanggil
+            os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        
         pygame.init()
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        pygame.display.set_caption("NEAT Training - Tabrak Bahlil")
+        
+        if self.headless:
+            # Headless mode: buat dummy display agar convert_alpha() bisa jalan
+            self.screen = pygame.display.set_mode((1, 1))
+            print("[HEADLESS MODE] Training tanpa visualisasi - lebih cepat!")
+        else:
+            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+            pygame.display.set_caption("NEAT Training - Tabrak Bahlil")
+            if self.render_interval > 1:
+                print(f"[REDUCED RENDER] Render setiap {self.render_interval} frame")
+        
         self.clock = pygame.time.Clock()
         
         # Load track
@@ -98,9 +117,13 @@ class NEATTrainer:
         else:
             print(f"WARNING: ai_masking.png not found, using track for collision")
         
-        # Fonts
-        self.font_large = pygame.font.SysFont("Arial", 70)
-        self.font_small = pygame.font.SysFont("Arial", 30)
+        # Fonts (hanya jika tidak headless)
+        if not self.headless:
+            self.font_large = pygame.font.SysFont("Arial", 70)
+            self.font_small = pygame.font.SysFont("Arial", 30)
+        else:
+            self.font_large = None
+            self.font_small = None
     
     def eval_genomes(self, genomes, config):
         """
@@ -143,16 +166,20 @@ class NEATTrainer:
         
         # Main loop
         running = True
+        frame_count = 0
         while running:
+            frame_count += 1
+            
             # Check max time
             if time.time() - gen_start_time > max_gen_time:
                 break
             
-            # Event handling
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit(0)
+            # Event handling (hanya jika tidak headless)
+            if not self.headless:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit(0)
             
             # Update cars
             alive_count = 0
@@ -197,7 +224,7 @@ class NEATTrainer:
                     fitness += car.lap_count * 2000  # 2000 per lap
                 
                 # Kill car jika tidak mencapai checkpoint berikutnya dalam 60 detik
-                max_time_between_checkpoints = 30 * 60  # 60 detik * 60 FPS
+                max_time_between_checkpoints = 60 * 60  # 60 detik * 60 FPS
                 time_since_last_checkpoint = car.time_spent - car.last_checkpoint_time
                 if time_since_last_checkpoint > max_time_between_checkpoints:
                     car.alive = False
@@ -234,8 +261,10 @@ class NEATTrainer:
                 camera_x = max(0, min(camera_x, self.map_width - self.screen_width))
                 camera_y = max(0, min(camera_y, self.map_height - self.screen_height))
             
-            # Render
-            self._render(cars, camera_x, camera_y, alive_count, len(cars))
+            # Render (skip jika headless atau berdasarkan interval)
+            if not self.headless and frame_count % self.render_interval == 0:
+                self._render(cars, camera_x, camera_y, alive_count, len(cars))
+                pygame.display.flip()
             
             self.clock.tick(0)  # Unlimited FPS untuk training cepat
     
@@ -265,7 +294,7 @@ class NEATTrainer:
         rect = text.get_rect(center=(self.screen_width / 2, 240))
         self.screen.blit(text, rect)
         
-        pygame.display.flip()
+        # pygame.display.flip() dipindah ke eval_genomes untuk kontrol render_interval
     
     def _handle_winner(self, genome, net, car: Motor, config):
         """Handle ketika ada winner"""

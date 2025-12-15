@@ -24,13 +24,40 @@ class Motor:
         self.velocity = 0
         self.color = color
 
-        # konstanta fisika
-        self.acceleration_rate = 0.16  # 30% lebih lambat (0.8 * 0.7)
-        self.friction = 0.98
-        self.steering_rate = 3  # derajat per frame
-        self.max_speed = 15  # 30% lebih lambat (4 * 0.7)
-        self.length = 140  # 15% lebih besar (80 * 1.15)
-        self.width = 80   # 15% lebih besar (40 * 1.15)
+        # =================================================================
+        # REALISTIC PHYSICS CONSTANTS
+        # =================================================================
+        
+        # Speed & Acceleration
+        self.acceleration_rate = 0.12      # Akselerasi (lebih realistis)
+        self.brake_power = 0.25            # Kekuatan rem
+        self.friction = 0.985              # Gesekan natural (mendekati 1 = mulus)
+        self.max_speed = 15                # Kecepatan maksimum
+        
+        # Steering - Speed Dependent
+        self.base_steering_rate = 4.5      # Steering rate saat diam/lambat (derajat/frame)
+        self.min_steering_rate = 1.2       # Steering rate minimal saat kecepatan max
+        self.steering_rate = self.base_steering_rate  # Dynamic, akan berubah
+        
+        # Grip & Traction
+        self.grip = 1.0                    # Grip saat ini (0.0-1.0)
+        self.base_grip = 1.0               # Grip dasar
+        self.turn_grip_loss = 0.15         # Kehilangan grip saat belok tajam
+        self.speed_grip_factor = 0.7       # Faktor grip di kecepatan tinggi
+        
+        # Turn Physics
+        self.turn_speed_penalty = 0.02     # Kehilangan speed saat belok
+        self.sharp_turn_threshold = 0.5    # Threshold untuk belok tajam (0-1)
+        self.understeer_factor = 0.3       # Seberapa besar understeer di speed tinggi
+        
+        # Inertia & Weight Transfer
+        self.lateral_velocity = 0          # Velocity samping (untuk slide)
+        self.lateral_friction = 0.92       # Gesekan lateral
+        self.weight_transfer = 0           # Weight transfer saat akselerasi/rem
+        
+        # Dimensions
+        self.length = 140
+        self.width = 80
         
         # drift mechanics
         self.drift_angle = 0  # sudut drift saat ini
@@ -280,21 +307,38 @@ class Motor:
     
     def steer(self, direction: int):
         """
-        Belokkan motor (untuk AI control).
-        SAMA dengan player handle_input logic.
+        Belokkan motor (untuk AI control) dengan REALISTIC PHYSICS.
+        Uses same speed-dependent steering as player.
         
         Args:
             direction: -1 (kanan), 0 (lurus), 1 (kiri)
         """
         prev_angle = self.angle
-        steer_amount = math.radians(7)  # ~7 derajat per frame
         
-        # Sama dengan player: direction positif = angle bertambah (belok kiri)
+        # Speed-dependent steering (sama dengan player)
+        speed_ratio = abs(self.velocity) / self.max_speed if self.max_speed > 0 else 0
+        
+        # Interpolate steering rate berdasarkan speed
+        current_steer_rate = self.base_steering_rate - (
+            (self.base_steering_rate - self.min_steering_rate) * speed_ratio
+        )
+        
+        # Understeer di kecepatan tinggi
+        understeer = 1.0 - (speed_ratio * self.understeer_factor)
+        steer_amount = math.radians(current_steer_rate) * understeer
+        
+        # Apply steering
         if direction == 1:
-            self.angle += steer_amount  # Belok kiri (sama dengan player tekan D)
+            self.angle += steer_amount  # Belok kiri
         elif direction == -1:
-            self.angle -= steer_amount  # Belok kanan (sama dengan player tekan A)
+            self.angle -= steer_amount  # Belok kanan
         # direction == 0: lurus
+        
+        # Speed penalty saat belok (sama dengan player)
+        if direction != 0 and abs(self.velocity) > 1:
+            turn_intensity = speed_ratio
+            speed_loss = self.turn_speed_penalty * turn_intensity
+            self.velocity *= (1.0 - speed_loss)
         
         # Track rotation untuk lap detection
         angle_change = abs(self.angle - prev_angle)
@@ -404,7 +448,7 @@ class Motor:
     def get_speed_kmh(self) -> int:
         """Get current speed in km/h for speedometer display"""
         # Convert internal velocity to km/h (scale factor for display)
-        return int(abs(self.velocity) * 15)  # Scale factor for display
+        return int(abs(self.velocity) * 7.5)  # Scale factor for display
     
     def _get_collision_corners(self) -> List[tuple]:
         """Get 4 corner points of motor for collision detection"""
@@ -479,50 +523,135 @@ class Motor:
             self.has_left_start = False
 
     def handle_input(self, keys):
-        """Kendali manual player dengan kontrol relatif dan drift (standard racing game)"""
-        # W/S untuk gas/rem
+        """Kendali manual player dengan REALISTIC PHYSICS
+        
+        Features:
+        - Speed-dependent steering (semakin cepat, semakin sulit belok)
+        - Grip system (kehilangan grip saat belok tajam di speed tinggi)
+        - Speed penalty saat belok
+        - Understeer di kecepatan tinggi
+        - Drift mechanics dengan handbrake
+        """
+        # =====================================================================
+        # 1. ACCELERATION & BRAKING
+        # =====================================================================
         if keys[pygame.K_w]:
-            self.velocity += self.acceleration_rate
+            # Akselerasi - lebih lambat di speed tinggi (drag)
+            speed_ratio = abs(self.velocity) / self.max_speed
+            accel_modifier = 1.0 - (speed_ratio * 0.5)  # Drag effect
+            self.velocity += self.acceleration_rate * accel_modifier
+            self.weight_transfer = 0.3  # Weight ke belakang
         elif keys[pygame.K_s]:
-            self.velocity -= self.acceleration_rate
+            # Rem - lebih kuat dari akselerasi
+            self.velocity -= self.brake_power
+            self.weight_transfer = -0.5  # Weight ke depan
         else:
             self.velocity *= self.friction
+            self.weight_transfer *= 0.9  # Decay weight transfer
 
-        self.velocity = max(-self.max_speed, min(self.max_speed, self.velocity))
+        # Clamp velocity
+        self.velocity = max(-self.max_speed * 0.5, min(self.max_speed, self.velocity))
 
-        # A/D untuk steering
+        # =====================================================================
+        # 2. SPEED-DEPENDENT STEERING RATE
+        # =====================================================================
+        # Semakin cepat = semakin sulit belok (realistic motorcycle/car physics)
+        speed_ratio = abs(self.velocity) / self.max_speed
+        
+        # Interpolate steering rate: base (saat lambat) -> min (saat max speed)
+        self.steering_rate = self.base_steering_rate - (
+            (self.base_steering_rate - self.min_steering_rate) * speed_ratio
+        )
+
+        # =====================================================================
+        # 3. STEERING INPUT
+        # =====================================================================
         self.steering_input = 0
         if keys[pygame.K_a]:
             self.steering_input = -1
         elif keys[pygame.K_d]:
             self.steering_input = 1
 
-        # Drift dengan Space atau Shift
+        # Drift/Handbrake dengan Space atau Shift
         self.is_drifting = keys[pygame.K_SPACE] or keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
         
         # Simpan angle sebelum berubah untuk rotation tracking
         prev_angle = self.angle
-        
+
+        # =====================================================================
+        # 4. APPLY STEERING WITH PHYSICS
+        # =====================================================================
         if abs(self.velocity) > 0.1:
             if self.is_drifting and self.steering_input != 0:
-                # Mode drift - steering lebih tajam dan ada slide
+                # =============================================================
+                # DRIFT MODE - Override normal physics
+                # =============================================================
                 self.drift_direction = self.steering_input
-                drift_steer_rate = self.steering_rate * 1.8  # 80% lebih tajam saat drift
-                self.angle += math.radians(drift_steer_rate) * self.steering_input
                 
-                # Build up drift angle
-                max_drift = 0.4  # max drift angle in radians
-                self.drift_angle += self.steering_input * 0.05
+                # Drift steering lebih tajam
+                drift_steer = self.base_steering_rate * 1.5
+                self.angle += math.radians(drift_steer) * self.steering_input
+                
+                # Build up drift angle (sliding)
+                max_drift = 0.5
+                self.drift_angle += self.steering_input * 0.08
                 self.drift_angle = max(-max_drift, min(max_drift, self.drift_angle))
-            else:
-                # Normal steering
-                steering_factor = self.velocity / self.max_speed
-                self.angle += math.radians(self.steering_rate) * self.steering_input * abs(steering_factor)
                 
-                # Decay drift angle
-                self.drift_angle *= 0.9
+                # Speed penalty saat drift
+                self.velocity *= 0.995
+                
+                # Lose grip saat drift
+                self.grip = max(0.3, self.grip - 0.05)
+                
+                # Build lateral velocity
+                self.lateral_velocity += self.steering_input * 0.5
+                
+            else:
+                # =============================================================
+                # NORMAL STEERING with realistic physics
+                # =============================================================
+                
+                # Base steering dengan speed factor
+                steer_amount = math.radians(self.steering_rate) * self.steering_input
+                
+                # Understeer di kecepatan tinggi
+                understeer = 1.0 - (speed_ratio * self.understeer_factor)
+                steer_amount *= understeer
+                
+                # Apply steering
+                self.angle += steer_amount
+                
+                # Speed penalty saat belok (kehilangan speed proporsional dengan sudut belok)
+                if abs(self.steering_input) > 0:
+                    turn_intensity = abs(self.steering_input) * speed_ratio
+                    speed_loss = self.turn_speed_penalty * turn_intensity
+                    self.velocity *= (1.0 - speed_loss)
+                
+                # Grip recovery
+                self.grip = min(self.base_grip, self.grip + 0.02)
+                
+                # Decay drift angle saat tidak drift
+                self.drift_angle *= 0.85
+                
+                # Decay lateral velocity
+                self.lateral_velocity *= self.lateral_friction
+
+        # =====================================================================
+        # 5. LATERAL PHYSICS (sliding/inertia)
+        # =====================================================================
+        # Clamp lateral velocity
+        max_lateral = 3.0
+        self.lateral_velocity = max(-max_lateral, min(max_lateral, self.lateral_velocity))
+
+        # =====================================================================
+        # 6. GRIP EFFECTS
+        # =====================================================================
+        # Grip berkurang di speed tinggi saat belok
+        if abs(self.steering_input) > 0 and speed_ratio > 0.6:
+            grip_loss = self.turn_grip_loss * speed_ratio * abs(self.steering_input)
+            self.grip = max(0.5, self.grip - grip_loss)
         
-        # Track rotation untuk lap detection (di handle_input karena angle berubah di sini)
+        # Track rotation untuk lap detection
         angle_diff = math.degrees(self.angle - prev_angle)
         self.total_rotation += abs(angle_diff)
 

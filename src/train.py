@@ -3,10 +3,17 @@ Training Entry Point untuk Tabrak Bahlil AI
 ============================================
 
 Cara pakai:
-    python train.py                    # Training default
+    python train.py                    # Training default (dengan visualisasi)
     python train.py --generations 100  # Set jumlah generasi
     python train.py --track mandalika  # Pilih track
     python train.py --laps 10          # Target lap untuk menang
+    
+Mode cepat (tanpa visualisasi):
+    python train.py --headless         # Training tanpa visualisasi (3-5x lebih cepat)
+    python train.py --render-interval 10  # Render setiap 10 frame (lebih cepat)
+    
+Contoh kombinasi:
+    python train.py -g 100 --headless  # 100 generasi, tanpa visualisasi
 """
 
 import os
@@ -45,6 +52,19 @@ def main():
         help='Target lap untuk menang (default: 15)'
     )
     
+    parser.add_argument(
+        '--headless',
+        action='store_true',
+        help='Training tanpa visualisasi (lebih cepat 3-5x)'
+    )
+    
+    parser.add_argument(
+        '--render-interval', '-r',
+        type=int,
+        default=1,
+        help='Render setiap N frame, misal 10 = render setiap 10 frame (default: 1)'
+    )
+    
     args = parser.parse_args()
     
     # Config path (di root project)
@@ -55,12 +75,15 @@ def main():
         print(f"ERROR: Config tidak ditemukan: {config_path}")
         sys.exit(1)
     
+    mode_str = "HEADLESS" if args.headless else f"Visual (render every {args.render_interval} frame)"
+    
     print("=" * 60)
     print("  TABRAK BAHLIL - NEAT AI Training")
     print("=" * 60)
     print(f"Track       : {args.track}")
     print(f"Generations : {args.generations}")
     print(f"Target Laps : {args.laps}")
+    print(f"Mode        : {mode_str}")
     print(f"Config      : {config_path}")
     print("=" * 60)
     print()
@@ -68,7 +91,9 @@ def main():
     # Create trainer
     trainer = NEATTrainer(
         config_path=config_path,
-        track_name=args.track
+        track_name=args.track,
+        headless=args.headless,
+        render_interval=args.render_interval
     )
     trainer.target_laps = args.laps
     

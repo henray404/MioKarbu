@@ -1,71 +1,216 @@
+# =============================================================================
+# NEAT CONFIG - TABRAK BAHLIL AI
+# =============================================================================
+#
+# PANDUAN TUNING:
+# - Parameter dengan komentar "🎯 TUNABLE" bisa diubah untuk eksperimen
+# - Lihat keterangan NAIK/TURUN untuk efek perubahan nilai
+#
+# =============================================================================
+
+
 [NEAT]
-fitness_criterion     = max
-fitness_threshold     = 100.0
-pop_size              = 30
-reset_on_extinction   = 1
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: pop_size - Jumlah motor (genome) per generasi
+# -----------------------------------------------------------------------------
+# NAIK  (150-300): Eksplorasi lebih luas, diversity tinggi, TAPI lebih lambat
+# TURUN (30-50):   Lebih cepat, TAPI bisa stuck di local optima
+# SWEET SPOT:      100-150
+pop_size = 150
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: fitness_threshold - Target fitness untuk stop training
+# -----------------------------------------------------------------------------
+# NAIK:  Training lebih lama, cari solusi lebih optimal
+# TURUN: Training lebih cepat selesai
+# TIP:   Set sangat tinggi (100000) jika mau training sampai generations habis
+fitness_threshold = 100000.0
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: no_fitness_termination - Jangan stop walau threshold tercapai
+# -----------------------------------------------------------------------------
+# True:  Training terus sampai generations habis
+# False: Stop kalau fitness_threshold tercapai
 no_fitness_termination = True
 
+# Fixed NEAT params
+fitness_criterion = max
+reset_on_extinction = 1
+
+
 [DefaultGenome]
-num_inputs              = 5
-num_hidden              = 8
-num_outputs             = 3
-initial_connection      = full_direct
-feed_forward            = True
-compatibility_disjoint_coefficient    = 1.0
-compatibility_weight_coefficient      = 0.6
-conn_add_prob           = 0.5
-conn_delete_prob        = 0.3
-node_add_prob           = 0.4
-node_delete_prob        = 0.2
-activation_default      = relu
-activation_options      = relu tanh sigmoid gauss
-activation_mutate_rate  = 0.2
-aggregation_default     = sum
-aggregation_options     = sum
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: weight_mutate_rate - Seberapa sering weight berubah
+# -----------------------------------------------------------------------------
+# NAIK  (0.9-1.0): Eksplorasi agresif, fitness bisa "jumpy"/tidak stabil
+# TURUN (0.3-0.5): Lebih stabil, TAPI bisa lambat improve
+# SWEET SPOT:      0.7-0.8
+weight_mutate_rate = 0.75
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: weight_mutate_power - Seberapa BESAR perubahan weight
+# -----------------------------------------------------------------------------
+# NAIK  (0.8-1.0): Perubahan drastis, eksplorasi luas
+# TURUN (0.3-0.5): Perubahan halus, fine-tuning
+# SWEET SPOT:      0.5-0.7
+weight_mutate_power = 0.7
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: bias_mutate_rate - Seberapa sering bias berubah
+# -----------------------------------------------------------------------------
+# NAIK  (0.8-0.9): Eksplorasi lebih luas
+# TURUN (0.3-0.5): Lebih stabil
+# SWEET SPOT:      0.6-0.7
+bias_mutate_rate = 0.7
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: bias_mutate_power - Seberapa BESAR perubahan bias
+# -----------------------------------------------------------------------------
+# NAIK:  Perubahan besar
+# TURUN: Perubahan halus
+bias_mutate_power = 0.5
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: conn_add_prob - Probabilitas menambah koneksi baru
+# -----------------------------------------------------------------------------
+# NAIK  (0.6-0.8): Network jadi lebih kompleks
+# TURUN (0.2-0.3): Network lebih simpel
+# SWEET SPOT:      0.4-0.5
+conn_add_prob = 0.5
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: conn_delete_prob - Probabilitas menghapus koneksi
+# -----------------------------------------------------------------------------
+# NAIK:  Network jadi lebih sparse/simpel
+# TURUN: Koneksi dipertahankan
+conn_delete_prob = 0.3
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: node_add_prob - Probabilitas menambah neuron hidden
+# -----------------------------------------------------------------------------
+# NAIK  (0.4-0.6): Network jadi lebih dalam/kompleks
+# TURUN (0.1-0.2): Network tetap sederhana
+# WARNING: Terlalu tinggi bisa bikin network bloated
+node_add_prob = 0.4
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: node_delete_prob - Probabilitas menghapus neuron
+# -----------------------------------------------------------------------------
+# NAIK:  Network jadi lebih ramping
+# TURUN: Neuron dipertahankan
+node_delete_prob = 0.2
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: activation_mutate_rate - Probabilitas ganti activation
+# -----------------------------------------------------------------------------
+# NAIK:  Lebih eksploratif dengan berbagai activation function
+# TURUN: Activation function konsisten
+# TIP:   Set 0 jika mau activation tetap
+activation_mutate_rate = 0.2
+
+# Network Architecture (Fixed)
+num_inputs = 5
+num_hidden = 8
+num_outputs = 3
+initial_connection = full_direct
+feed_forward = True
+
+# Activation Function Options (Fixed)
+activation_default = relu
+activation_options = relu tanh sigmoid gauss
+
+# Aggregation (Fixed)
+aggregation_default = sum
+aggregation_options = sum
 aggregation_mutate_rate = 0.0
-bias_init_mean          = 0.0
-bias_init_stdev         = 1.0
-bias_replace_rate       = 0.1
-bias_mutate_rate        = 0.7
-bias_mutate_power       = 0.5
-bias_max_value          = 30.0
-bias_min_value          = -30.0
-response_init_mean      = 1.0
-response_init_stdev     = 0.0
-response_replace_rate   = 0.0
-response_mutate_rate    = 0.0
-response_mutate_power   = 0.0
-response_max_value      = 30.0
-response_min_value      = -30.0
-single_structural_mutation = false
-structural_mutation_surer = default
 
+# Bias Init (Fixed)
+bias_init_mean = 0.0
+bias_init_stdev = 1.0
 bias_init_type = gaussian
-response_init_type = gaussian
-weight_init_type = gaussian
+bias_replace_rate = 0.1
+bias_max_value = 30.0
+bias_min_value = -30.0
 
+# Response (Fixed)
+response_init_mean = 1.0
+response_init_stdev = 0.0
+response_init_type = gaussian
+response_replace_rate = 0.0
+response_mutate_rate = 0.0
+response_mutate_power = 0.0
+response_max_value = 30.0
+response_min_value = -30.0
+
+# Weight Init (Fixed)
+weight_max_value = 30
+weight_min_value = -30
+weight_init_mean = 0.0
+weight_init_stdev = 1.0
+weight_init_type = gaussian
+weight_replace_rate = 0.2
+
+# Connection Enable/Disable (Fixed)
+enabled_default = True
+enabled_mutate_rate = 0.01
 enabled_rate_to_true_add = 0.0
 enabled_rate_to_false_add = 0.0
 
-weight_max_value        = 30
-weight_min_value        = -30
-weight_init_mean        = 0.0
-weight_init_stdev       = 1.0
-weight_mutate_rate      = 0.9
-weight_replace_rate     = 0.2
-weight_mutate_power     = 0.7
-enabled_default         = True
-enabled_mutate_rate     = 0.01
+# Structural Mutation (Fixed)
+single_structural_mutation = false
+structural_mutation_surer = default
+
+# Compatibility (Fixed)
+compatibility_disjoint_coefficient = 1.0
+compatibility_weight_coefficient = 0.6
+
 
 [DefaultSpeciesSet]
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: compatibility_threshold - Threshold untuk grouping species
+# -----------------------------------------------------------------------------
+# NAIK  (3.0-5.0): Sedikit species, genome lebih mirip per species
+# TURUN (1.0-2.0): Banyak species, diversity tinggi
+# WARNING: Terlalu rendah = terlalu banyak species = lambat
 compatibility_threshold = 2.0
 
+
 [DefaultStagnation]
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: max_stagnation - Hapus species yang stuck setelah N generasi
+# -----------------------------------------------------------------------------
+# NAIK  (20-30): Species punya waktu lebih lama untuk improve
+# TURUN (5-10):  Agresif remove species yang stuck
+# SWEET SPOT:    10-15
+max_stagnation = 15
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: species_elitism - Minimal species yang SELALU dipertahankan
+# -----------------------------------------------------------------------------
+# NAIK (2-3):  Lebih banyak species survive, diversity terjaga
+# TURUN (1):   Hanya species terbaik yang pasti survive
+species_elitism = 2
+
+# Fixed
 species_fitness_func = max
-max_stagnation  = 10
-species_elitism = 1
+
 
 [DefaultReproduction]
-elitism            = 1
-survival_threshold = 0.15
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: elitism - Genome terbaik yang langsung lolos TANPA mutasi
+# -----------------------------------------------------------------------------
+# NAIK  (3-5): Preserve lebih banyak solusi bagus, lebih stabil
+# TURUN (1):   Lebih exploratif, TAPI bisa kehilangan solusi bagus
+# SWEET SPOT:  2-3
+elitism = 2
+
+# -----------------------------------------------------------------------------
+# 🎯 TUNABLE: survival_threshold - Persentase genome yang boleh reproduce
+# -----------------------------------------------------------------------------
+# NAIK  (0.3-0.5): Lebih banyak genome boleh bereproduksi
+# TURUN (0.1-0.2): Hanya elite yang reproduce, seleksi ketat
+# SWEET SPOT:      0.15-0.25
+survival_threshold = 0.2
+
+# Fixed
 min_species_size = 1
