@@ -1,7 +1,7 @@
 import pygame
 
 class ScreenBase:
-    def __init__(self, manager, screen_size: tuple[int, int]):
+    def __init__(self, manager, screen_size):
         self.manager = manager
         self.screen_width, self.screen_height = screen_size
 
