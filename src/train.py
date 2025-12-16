@@ -107,7 +107,38 @@ def main():
             print(f"Model tersimpan di: models/")
         
     except KeyboardInterrupt:
-        print("\n\nTraining dihentikan oleh user")
+        print("\n\n" + "="*50)
+        print("Training dihentikan oleh user")
+        print("="*50)
+        
+        # Save best model sebelum exit
+        import pickle
+        import neat
+        models_dir = os.path.join(BASE_DIR, "models")
+        os.makedirs(models_dir, exist_ok=True)
+        
+        # Cari checkpoint terakhir untuk get best genome
+        checkpoint_dir = os.path.join(BASE_DIR, "neat_checkpoints")
+        checkpoints = [f for f in os.listdir(checkpoint_dir) if f.startswith("neat-checkpoint-")]
+        
+        if checkpoints:
+            # Sort by generation number
+            checkpoints.sort(key=lambda x: int(x.split("-")[-1]))
+            latest = os.path.join(checkpoint_dir, checkpoints[-1])
+            print(f"Loading latest checkpoint: {latest}")
+            
+            try:
+                pop = neat.Checkpointer.restore_checkpoint(latest)
+                best = pop.best_genome
+                if best:
+                    with open(os.path.join(models_dir, 'interrupted_genome.pkl'), 'wb') as f:
+                        pickle.dump(best, f)
+                    print(f"✅ Best genome saved to: models/interrupted_genome.pkl")
+                    print(f"   Fitness: {best.fitness:.2f}")
+            except Exception as e:
+                print(f"Could not save genome: {e}")
+        else:
+            print("No checkpoints found to save")
 
 
 if __name__ == "__main__":

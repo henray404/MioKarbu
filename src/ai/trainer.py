@@ -31,7 +31,7 @@ class NEATTrainer:
     
     def __init__(self, config_path: str, track_name: str = "mandalika",
                  screen_width: int = 1280, screen_height: int = 960,
-                 map_width: int = 16512, map_height: int = 9216,
+                 map_width: int = 7872, map_height: int = 4896,
                  headless: bool = False, render_interval: int = 1):  # Sama dengan main.py (6x scale)
         """
         Inisialisasi trainer.
@@ -71,8 +71,12 @@ class NEATTrainer:
         # Rasio: x = 0.634, y = 0.179
         spawn_ratio_x = 0.634  # 1745 / 2752
         spawn_ratio_y = 0.179  # 275 / 1536
-        self.spawn_x = int(map_width * spawn_ratio_x)
-        self.spawn_y = int(map_height * spawn_ratio_y)
+        original_spawn_x = 1800
+        original_spawn_y = 1320
+        original_width = 2752
+        original_height = 1536
+        self.spawn_x = int(original_spawn_x * (map_width / original_width))
+        self.spawn_y = int(original_spawn_y * (map_height / original_height))
         self.spawn_angle = 0  # Hadap ke kanan (sama dengan player)
         
         # Win condition
@@ -105,17 +109,21 @@ class NEATTrainer:
             self.track_surface, (self.map_width, self.map_height)
         )
         
-        # Load AI masking untuk training (bukan masking.png biasa)
-        ai_masking_path = os.path.join(BASE_DIR, "assets", "tracks", "ai_masking.png")
+        # Load AI masking untuk training
+        # Coba beberapa nama file yang mungkin
+        masking_names = "ai_masking-4.png"
         self.masking_surface = None
-        if os.path.exists(ai_masking_path):
-            self.masking_surface = pygame.image.load(ai_masking_path)
+        
+        masking_path = os.path.join(BASE_DIR, "assets", "tracks", masking_names)
+        if os.path.exists(masking_path):
+            self.masking_surface = pygame.image.load(masking_path)
             self.masking_surface = pygame.transform.scale(
-                self.masking_surface, (self.map_width, self.map_height)
+            self.masking_surface, (self.map_width, self.map_height)
             )
-            print(f"AI Masking loaded: {self.map_width}x{self.map_height}")
-        else:
-            print(f"WARNING: ai_masking.png not found, using track for collision")
+            print(f"Masking loaded: {masking_names} ({self.map_width}x{self.map_height})")
+        
+        if self.masking_surface is None:
+            print(f"WARNING: No masking file found, collision may not work!")
         
         # Fonts (hanya jika tidak headless)
         if not self.headless:
@@ -193,22 +201,22 @@ class NEATTrainer:
                 # Get radar data
                 radar_data = car.get_radar_data()
                 
-                # Neural network decision
+                # Neural network decision - CONTINUOUS OUTPUT
                 output = net.activate(radar_data)
-                action = output.index(max(output))
                 
-                # Steer: 0=kiri, 1=lurus, 2=kanan (sama dengan player)
-                if action == 0:
-                    car.steer(1)  # Belok kiri
-                elif action == 2:
-                    car.steer(-1)  # Belok kanan
-                # action == 1: lurus
+                # Output 0: Steering (-1 to +1)
+                # tanh activation naturally gives -1 to +1
+                steering = max(-1, min(1, output[0]))
+                
+                # Output 1: Throttle (0 to 1)
+                # Clamp to 0-1 range, AI learns to control speed
+                throttle = max(0.3, min(1, output[1]))  # Min 0.3 supaya tidak berhenti total
+                
+                # Apply continuous control
+                car.set_ai_input(steering, throttle)
                 
                 # Update car
                 car.update()
-                
-                # Keep AI at max speed (setelah update untuk override slow zone)
-                car.velocity = car.max_speed
                 
                 # Update fitness (sequential checkpoint system)
                 # Prioritas: distance > checkpoint progress > lap
@@ -224,7 +232,7 @@ class NEATTrainer:
                     fitness += car.lap_count * 2000  # 2000 per lap
                 
                 # Kill car jika tidak mencapai checkpoint berikutnya dalam 60 detik
-                max_time_between_checkpoints = 60 * 60  # 60 detik * 60 FPS
+                max_time_between_checkpoints = 20 * 60  # 60 detik * 60 FPS
                 time_since_last_checkpoint = car.time_spent - car.last_checkpoint_time
                 if time_since_last_checkpoint > max_time_between_checkpoints:
                     car.alive = False
