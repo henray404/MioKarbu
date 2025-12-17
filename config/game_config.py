@@ -23,6 +23,7 @@ FULLSCREEN = True
 DEFAULT_TARGET_LAPS = 3
 DEFAULT_AI_COUNT = 3
 DEFAULT_MODEL = "winner_genome.pkl"
+DEFAULT_MODEL_2 = "winner_map-2.pkl"
 MASKING_SUBFOLDER = "masking"
 
 # =============================================================================
@@ -45,16 +46,19 @@ MAP_SETTINGS = {
         "finish_line_end_y": 1500,
         
         "finish_x": 1800, # Fallback
-        "finish_y": 1380
+        "finish_y": 1380,
+
+        "model": "winner_map-2.pkl"
+
     },
     
     "new-4": {
         "track_file": "new-4",
         "masking_file": "ai_masking-4.png",
         
-        "spawn_x": 100,  # Sesuaikan
-        "spawn_y": 100,  # Sesuaikan
-        "spawn_angle": 90,
+        "spawn_x": 1760,  # Sesuaikan
+        "spawn_y": 1380,  # Sesuaikan
+        "spawn_angle": 0,
         
         # Tambahkan koordinat finish line baru
         "finish_line_start_x": 100, 
@@ -63,7 +67,9 @@ MAP_SETTINGS = {
         "finish_line_end_y": 100,
         
         "finish_x": 100, # Fallback
-        "finish_y": 100
+        "finish_y": 100,
+
+        "model": "winner_genome.pkl"
     }
 }
 

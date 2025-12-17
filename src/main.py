@@ -69,28 +69,28 @@ def load_sound_safe(filepath):
     return None
 
 def main():
-    # ===== CONFIG =====
-    # Pilih spawn/finish berdasarkan track
-    if cfg.TRACK_NAME == "new-4":
-        spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-        finish_start_x = cfg.FINISH_LINE_START_X
-        finish_start_y = cfg.FINISH_LINE_START_Y
-        finish_end_x = cfg.FINISH_LINE_END_X
-        finish_end_y = cfg.FINISH_LINE_END_Y
-    elif cfg.TRACK_NAME == "map-2":
-        spawn_x, spawn_y = cfg.SPAWN_X_2, cfg.SPAWN_Y_2
-        finish_start_x = cfg.FINISH_LINE_START_X_2
-        finish_start_y = cfg.FINISH_LINE_START_Y_2
-        finish_end_x = cfg.FINISH_LINE_END_X_2
-        finish_end_y = cfg.FINISH_LINE_END_Y_2
-    else:
-        # Default ke SPAWN_X/Y untuk track lainnya
-        spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-        finish_start_x = cfg.FINISH_LINE_START_X
-        finish_start_y = cfg.FINISH_LINE_START_Y
-        finish_end_x = cfg.FINISH_LINE_END_X
-        finish_end_y = cfg.FINISH_LINE_END_Y
-    # 1. Setup Display & Audio
+    # # ===== CONFIG =====
+    # # Pilih spawn/finish berdasarkan track
+    # if cfg.TRACK_NAME == "new-4":
+    #     spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
+    #     finish_start_x = cfg.FINISH_LINE_START_X
+    #     finish_start_y = cfg.FINISH_LINE_START_Y
+    #     finish_end_x = cfg.FINISH_LINE_END_X
+    #     finish_end_y = cfg.FINISH_LINE_END_Y
+    # elif cfg.TRACK_NAME == "map-2":
+    #     spawn_x, spawn_y = cfg.SPAWN_X_2, cfg.SPAWN_Y_2
+    #     finish_start_x = cfg.FINISH_LINE_START_X_2
+    #     finish_start_y = cfg.FINISH_LINE_START_Y_2
+    #     finish_end_x = cfg.FINISH_LINE_END_X_2
+    #     finish_end_y = cfg.FINISH_LINE_END_Y_2
+    # else:
+    #     # Default ke SPAWN_X/Y untuk track lainnya
+    #     spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
+    #     finish_start_x = cfg.FINISH_LINE_START_X
+    #     finish_start_y = cfg.FINISH_LINE_START_Y
+    #     finish_end_x = cfg.FINISH_LINE_END_X
+    #     finish_end_y = cfg.FINISH_LINE_END_Y
+    # # 1. Setup Display & Audio
     pygame.mixer.pre_init(44100, -16, 2, 512)
     pygame.init()
     
@@ -169,7 +169,7 @@ def main():
     )
 
     # Init Resources
-    model_path = find_model(BASE_DIR, cfg.DEFAULT_MODEL)
+    model_path = find_model(BASE_DIR, map_data["model"])
     config_path = os.path.join(BASE_DIR, "config.txt")
     
     game = GameManager(BASE_DIR, game_cfg)
