@@ -47,7 +47,6 @@ class NEATTrainer:
         self.config_path = config_path
         self.headless = headless
         self.render_interval = max(1, render_interval)
-        self.map_name = map_name
         
         # Game config - pakai dari game_config.py
         # Pilih spawn/finish berdasarkan track
@@ -73,12 +72,12 @@ class NEATTrainer:
             finish_end_y = cfg.FINISH_LINE_END_Y
         
         self.game_cfg = GameConfig(
-            track_name=used_track,
+            track_name=track_name or cfg.TRACK_NAME,
             track_scale=cfg.TRACK_SCALE,
             original_track_width=cfg.ORIGINAL_TRACK_WIDTH,
             original_track_height=cfg.ORIGINAL_TRACK_HEIGHT,
-            spawn_x=spawn_x,
-            spawn_y=spawn_y,
+            spawn_x=cfg.SPAWN_X,
+            spawn_y=cfg.SPAWN_Y,
             spawn_angle=cfg.SPAWN_ANGLE,
             finish_line_start_x=finish_start_x,
             finish_line_start_y=finish_start_y,
@@ -296,7 +295,7 @@ class NEATTrainer:
         models_dir = os.path.join(BASE_DIR, "models")
         os.makedirs(models_dir, exist_ok=True)
         
-        with open(os.path.join(models_dir, f'{prefix}_{self.map_name}.pkl'), 'wb') as f:
+        with open(os.path.join(models_dir, f'{prefix}_{map_name}.pkl'), 'wb') as f:
             pickle.dump(genome, f)
         with open(os.path.join(models_dir, f'{prefix}_network.pkl'), 'wb') as f:
             pickle.dump(net, f)

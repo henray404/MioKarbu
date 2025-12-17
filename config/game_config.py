@@ -1,25 +1,24 @@
 """
 Game Configuration
 ==================
-
-Konfigurasi untuk game (main.py) dan training (train.py).
-Edit nilai di sini untuk menyesuaikan game.
+Konfigurasi terpusat. Edit koordinat map di dictionary MAP_SETTINGS di bawah.
 """
 
 # =============================================================================
-# TRACK CONFIGURATION
+# GLOBAL SETTINGS
 # =============================================================================
-
-# Track yang digunakan (nama file tanpa .png)
-TRACK_NAME = "map-2"
 
 # Scale track (1.0 = ukuran asli, 3.0 = 3x lebih besar)
 TRACK_SCALE = 3.0
 
-# Ukuran track original (untuk kalkulasi spawn)
+# Ukuran track original (default reference)
 ORIGINAL_TRACK_WIDTH = 2624
 ORIGINAL_TRACK_HEIGHT = 1632
 
+# Display
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 960
+FULLSCREEN = True
 
 # =============================================================================
 # SPAWN CONFIGURATION
@@ -65,12 +64,34 @@ MASKING_SUBFOLDER = "masking"
 
 
 # =============================================================================
-# DISPLAY CONFIGURATION
+# MAP CONFIGURATIONS (DATABASE MAP)
 # =============================================================================
+# Tambahkan map baru atau edit koordinat spawn di sini.
 
-# Ukuran window (akan di-override jika fullscreen)
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 960
+MAP_SETTINGS = {
+    "map-2": {
+        "track_file": "map-2",           # Nama file gambar track
+        "masking_file": "ai_masking-5.png", # Nama file masking
+        "spawn_x": 1375,                 # Koordinat X Spawn
+        "spawn_y": 1220,                 # Koordinat Y Spawn
+        "spawn_angle": 0,                # Sudut hadap (0 = Kanan)
+        "finish_x": 1800,                # Garis finish X
+        "finish_y": 1380                 # Garis finish Y
+    },
+    
+    "new-4": {
+        "track_file": "new-4",
+        "masking_file": "ai_masking-4.png",
+        
+        # --- KONFIGURASI INI YANG NANTI KAMU EDIT ---
+        "spawn_x": 1800,                  # <--- Ganti dengan koordinat spawn new-4
+        "spawn_y": 1380,                  # <--- Ganti dengan koordinat spawn new-4
+        "spawn_angle": 0,               # <--- Ganti sudut (90 = Bawah)
+        "finish_x": 1800,                 # <--- Ganti finish line
+        "finish_y": 1380                  # <--- Ganti finish line
+        # --------------------------------------------
+    }
+}
 
 # Fullscreen mode (True = pakai resolusi layar)
 FULLSCREEN = True
@@ -94,65 +115,14 @@ DEFAULT_MODEL = "winner_map-2.pkl"
 # HELPER FUNCTIONS
 # =============================================================================
 
-def get_spawn_position(map_width: int, map_height: int) -> tuple:
+def get_spawn_position(map_width: int, map_height: int, raw_x: int, raw_y: int) -> tuple:
     """
-    Hitung posisi spawn berdasarkan ukuran map dan track yang dipilih.
-    
-    Args:
-        map_width: Lebar map setelah di-scale
-        map_height: Tinggi map setelah di-scale
-        
-    Returns:
-        Tuple (spawn_x, spawn_y) yang sudah di-scale
+    Hitung posisi spawn scale berdasarkan koordinat RAW dari config.
     """
-    # Pilih spawn berdasarkan track
-    if TRACK_NAME == "new-4":
-        base_x, base_y = SPAWN_X, SPAWN_Y
-    elif TRACK_NAME == "map-2":
-        base_x, base_y = SPAWN_X_2, SPAWN_Y_2
-    else:
-        # Default ke SPAWN_X/Y untuk track lainnya
-        base_x, base_y = SPAWN_X, SPAWN_Y
-    
-    spawn_x = int(base_x * (map_width / ORIGINAL_TRACK_WIDTH))
-    spawn_y = int(base_y * (map_height / ORIGINAL_TRACK_HEIGHT))
+    spawn_x = int(raw_x * (map_width / ORIGINAL_TRACK_WIDTH))
+    spawn_y = int(raw_y * (map_height / ORIGINAL_TRACK_HEIGHT))
     return spawn_x, spawn_y
 
-
-def get_finish_position(map_width: int, map_height: int) -> tuple:
-    """
-    Hitung posisi finish line berdasarkan ukuran map dan track yang dipilih.
-    
-    Args:
-        map_width: Lebar map setelah di-scale
-        map_height: Tinggi map setelah di-scale
-        
-    Returns:
-        Tuple (finish_x, finish_y) yang sudah di-scale
-    """
-    # Pilih finish berdasarkan track
-    if TRACK_NAME == "new-4":
-        base_x, base_y = FINISH_X, FINISH_Y
-    elif TRACK_NAME == "map-2":
-        base_x, base_y = FINISH_X_2, FINISH_Y_2
-    else:
-        # Default ke FINISH_X/Y untuk track lainnya
-        base_x, base_y = FINISH_X, FINISH_Y
-    
-    finish_x = int(base_x * (map_width / ORIGINAL_TRACK_WIDTH))
-    finish_y = int(base_y * (map_height / ORIGINAL_TRACK_HEIGHT))
-    return finish_x, finish_y
-
-
-def get_masking_path(assets_dir: str) -> str:
-    """
-    Get full path ke file masking.
-    
-    Args:
-        assets_dir: Path ke folder assets
-        
-    Returns:
-        Full path ke masking file
-    """
+def get_masking_path(assets_dir: str, filename: str) -> str:
     import os
-    return os.path.join(assets_dir, "tracks", MASKING_SUBFOLDER, MASKING_FILE)
+    return os.path.join(assets_dir, "tracks", MASKING_SUBFOLDER, filename)

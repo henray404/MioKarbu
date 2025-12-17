@@ -10,7 +10,7 @@ class MainMenuScreen(ScreenBase):
         self.result = None
         
         # --- BACKGROUND ---
-        bg_path = os.path.join(asset_root, "ui", "lobby.png")
+        bg_path = os.path.join(asset_root, "ui", "lobby-2.png")
         self.bg = pygame.image.load(bg_path).convert()
         self.bg = pygame.transform.scale(self.bg, screen_size)
         
@@ -23,27 +23,27 @@ class MainMenuScreen(ScreenBase):
 
         # --- SETUP TOMBOL (Dengan Scaling) ---
         # Ganti angka 0.8 sesuai kebutuhan (0.5 = setengah, 1.0 = normal, 1.5 = besar)
-        SCALE_PLAY = 1.15
-        SCALE_SETTINGS = 1.14
-        SCALE_QUIT = 1.1
+        SCALE_PLAY = 1.2
+        SCALE_SETTINGS = 1.2
+        SCALE_QUIT = 1.2
         
         # Play Button (1100, 400)
         self.btn_play = HoverButton(
-            1120, 575, 
+            1740, 650, 
             os.path.join(asset_root, "ui", "btn-play.png"), 
             base_scale=SCALE_PLAY
         )
         
         # Settings Button (1000, 550)
         self.btn_settings = HoverButton(
-            1120, 675, 
+            1720, 760,
             os.path.join(asset_root, "ui", "btn-settings.png"), 
             base_scale=SCALE_SETTINGS
         )
         
         # Quit Button (1000, 700)
         self.btn_quit = HoverButton(
-            1120, 765, 
+            1740, 860, 
             os.path.join(asset_root, "ui", "btn-exit.png"), 
             base_scale=SCALE_QUIT
         )

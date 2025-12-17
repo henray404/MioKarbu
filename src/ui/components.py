@@ -151,3 +151,76 @@ class SettingsPopup(UIComponent):
         pygame.draw.rect(surface, (150, 30, 30), self.btn_close, 3, border_radius=10)
         x_surf = self.font_ui.render("X", True, (255, 255, 255))
         surface.blit(x_surf, x_surf.get_rect(center=self.btn_close.center))
+    
+class PausePopup(UIComponent):
+    """
+    Popup Menu saat tombol ESC ditekan
+    """
+    def __init__(self, screen_size):
+        sw, sh = screen_size
+        panel_w, panel_h = 400, 450
+        x = (sw - panel_w) // 2
+        y = (sh - panel_h) // 2
+        super().__init__(x, y)
+        
+        self.rect = pygame.Rect(x, y, panel_w, panel_h)
+        self.action = None  # "RESUME", "RETRY", "EXIT"
+        
+        # Font
+        self.font_title = pygame.font.SysFont(None, 64, bold=True)
+        self.font_btn = pygame.font.SysFont(None, 48, bold=True)
+        
+        # Layout Tombol
+        btn_w, btn_h = 250, 60
+        cx = self.rect.centerx - (btn_w // 2)
+        start_y = self.rect.y + 130
+        
+        self.btn_resume = pygame.Rect(cx, start_y, btn_w, btn_h)
+        self.btn_retry = pygame.Rect(cx, start_y + 90, btn_w, btn_h)
+        self.btn_exit = pygame.Rect(cx, start_y + 180, btn_w, btn_h)
+
+    def handle_event(self, event):
+        if not self.is_visible: return False
+        
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mp = pygame.mouse.get_pos()
+            if self.btn_resume.collidepoint(mp):
+                self.action = "RESUME"
+                return True
+            elif self.btn_retry.collidepoint(mp):
+                self.action = "RETRY"
+                return True
+            elif self.btn_exit.collidepoint(mp):
+                self.action = "EXIT"
+                return True
+        return False
+
+    def draw(self, surface):
+        if not self.is_visible: return
+
+        # 1. Overlay Gelap
+        sw, sh = surface.get_size()
+        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        surface.blit(overlay, (0, 0))
+
+        # 2. Background Panel (Style Kayu)
+        pygame.draw.rect(surface, (149, 98, 53), self.rect, border_radius=20)
+        pygame.draw.rect(surface, (107, 65, 39), self.rect, 8, border_radius=20)
+
+        # 3. Judul
+        title = self.font_title.render("PAUSED", True, (255, 240, 200))
+        surface.blit(title, title.get_rect(center=(self.rect.centerx, self.rect.y + 60)))
+
+        # 4. Helper Gambar Tombol
+        def draw_btn(rect, text, color):
+            mp = pygame.mouse.get_pos()
+            col = color if not rect.collidepoint(mp) else (min(255, color[0]+30), min(255, color[1]+30), min(255, color[2]+30))
+            pygame.draw.rect(surface, col, rect, border_radius=15)
+            pygame.draw.rect(surface, (107, 65, 39), rect, 4, border_radius=15)
+            txt = self.font_btn.render(text, True, (255, 255, 255))
+            surface.blit(txt, txt.get_rect(center=rect.center))
+
+        draw_btn(self.btn_resume, "RESUME", (100, 220, 50))
+        draw_btn(self.btn_retry, "RETRY", (220, 160, 40))
+        draw_btn(self.btn_exit, "EXIT", (200, 50, 50))
