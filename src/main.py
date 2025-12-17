@@ -1,7 +1,3 @@
-"""
-Mio Karbu - Player vs AI Mode (Final Fix)
-=========================================
-"""
 
 import os
 import sys

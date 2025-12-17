@@ -28,7 +28,7 @@ class MainMenuScreen(ScreenBase):
         
         # Posisi relatif ke layar (kanan bawah)
         sw, sh = screen_size
-        btn_x = int(sw * 0.85)  # 85% dari lebar layar
+        btn_x = int(sw * 0.91)  # 85% dari lebar layar
         
         # Play Button
         self.btn_play = HoverButton(
