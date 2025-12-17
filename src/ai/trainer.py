@@ -1,146 +1,109 @@
 """
-NEAT Trainer untuk Tabrak Bahlil
-================================
+NEAT Trainer untuk Mio Karbu
+============================
 
 Modular trainer untuk training AI dengan NEAT algorithm.
+Menggunakan GameManager untuk asset loading.
 """
 
 import os
 import sys
+import time
 import pickle
 import neat
 import pygame
-from typing import List, Tuple, Optional, Callable
+from typing import List, Optional
 
 # Path setup
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(BASE_DIR, "src"))
+sys.path.insert(0, os.path.join(BASE_DIR, "config"))
 
+# Import modules
+from core.game_manager import GameManager, GameConfig
+from core.display_manager import DisplayManager
 from core.motor import Motor
+import game_config as cfg
 
 
 class NEATTrainer:
     """
     Trainer untuk NEAT evolution.
     
-    Attributes:
-        config_path: Path ke NEAT config
-        track_path: Path ke track image
-        generation: Generasi saat ini
+    Menggunakan GameManager untuk loading track dan masking.
     """
     
-    def __init__(self, config_path: str, track_name: str = "mandalika",
-                 screen_width: int = 1280, screen_height: int = 960,
-                 map_width: int = 7872, map_height: int = 4896,
-                 headless: bool = False, render_interval: int = 1):  # Sama dengan main.py (6x scale)
+    def __init__(self, config_path: str, track_name: str = None,
+                 headless: bool = False, render_interval: int = 1):
         """
         Inisialisasi trainer.
         
         Args:
             config_path: Path ke neat config file
-            track_name: Nama track (tanpa .png)
-            screen_width, screen_height: Ukuran window
-            map_width, map_height: Ukuran map
-            headless: Jika True, training tanpa visualisasi (lebih cepat)
-            render_interval: Render setiap N frame (1=setiap frame, 10=setiap 10 frame)
+            track_name: Nama track (tanpa .png), None = pakai config
+            headless: Training tanpa visualisasi (lebih cepat)
+            render_interval: Render setiap N frame
         """
         self.config_path = config_path
-        self.track_name = track_name
-        self.screen_width = screen_width
-        self.screen_height = screen_height
-        self.map_width = map_width
-        self.map_height = map_height
         self.headless = headless
-        self.render_interval = max(1, render_interval)  # Minimal 1
+        self.render_interval = max(1, render_interval)
         
-        # Track path
-        self.track_path = os.path.join(BASE_DIR, "assets", "tracks", f"{track_name}.png")
+        # Game config - pakai dari game_config.py
+        self.game_cfg = GameConfig(
+            track_name=track_name or cfg.TRACK_NAME,
+            track_scale=cfg.TRACK_SCALE,
+            original_track_width=cfg.ORIGINAL_TRACK_WIDTH,
+            original_track_height=cfg.ORIGINAL_TRACK_HEIGHT,
+            spawn_x=cfg.SPAWN_X,
+            spawn_y=cfg.SPAWN_Y,
+            spawn_angle=cfg.SPAWN_ANGLE,
+            finish_x=cfg.FINISH_X,
+            finish_y=cfg.FINISH_Y,
+            masking_file=cfg.MASKING_FILE,
+            masking_subfolder=cfg.MASKING_SUBFOLDER,
+        )
+        
+        # Managers
+        self.game: Optional[GameManager] = None
+        self.display: Optional[DisplayManager] = None
         
         # Training state
         self.generation = 0
         self.best_fitness = 0
         self.winner_found = False
         
-        # Pygame
-        self.screen = None
-        self.clock = None
-        self.track_surface = None
-        
-        # Spawn config - dihitung berdasarkan rasio dari track original
-        # Track original ~2752x1536, base spawn = 1745, 275
-        # Rasio: x = 0.634, y = 0.179
-        spawn_ratio_x = 0.634  # 1745 / 2752
-        spawn_ratio_y = 0.179  # 275 / 1536
-        original_spawn_x = 1800
-        original_spawn_y = 1320
-        original_width = 2752
-        original_height = 1536
-        self.spawn_x = int(original_spawn_x * (map_width / original_width))
-        self.spawn_y = int(original_spawn_y * (map_height / original_height))
-        self.spawn_angle = 0  # Hadap ke kanan (sama dengan player)
-        
         # Win condition
         self.target_laps = 15
     
     def setup(self):
-        """Initialize pygame dan load track"""
-        if self.headless:
-            # Set dummy video driver untuk headless mode
-            # Ini memungkinkan convert_alpha() bisa dipanggil
-            os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        """Initialize pygame, display, dan load assets"""
+        # Create managers
+        self.game = GameManager(BASE_DIR, self.game_cfg)
+        self.display = DisplayManager(fullscreen=False, width=1280, height=960)
         
-        pygame.init()
+        # Initialize display
+        self.display.init(title="NEAT Training - Mio Karbu", headless=self.headless)
         
         if self.headless:
-            # Headless mode: buat dummy display agar convert_alpha() bisa jalan
-            self.screen = pygame.display.set_mode((1, 1))
             print("[HEADLESS MODE] Training tanpa visualisasi - lebih cepat!")
-        else:
-            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-            pygame.display.set_caption("NEAT Training - Tabrak Bahlil")
-            if self.render_interval > 1:
-                print(f"[REDUCED RENDER] Render setiap {self.render_interval} frame")
+        elif self.render_interval > 1:
+            print(f"[REDUCED RENDER] Render setiap {self.render_interval} frame")
         
-        self.clock = pygame.time.Clock()
-        
-        # Load track
-        self.track_surface = pygame.image.load(self.track_path)
-        self.track_surface = pygame.transform.scale(
-            self.track_surface, (self.map_width, self.map_height)
-        )
-        
-        # Load AI masking untuk training
-        # Coba beberapa nama file yang mungkin
-        masking_names = "ai_masking-4.png"
-        self.masking_surface = None
-        
-        masking_path = os.path.join(BASE_DIR, "assets", "tracks", masking_names)
-        if os.path.exists(masking_path):
-            self.masking_surface = pygame.image.load(masking_path)
-            self.masking_surface = pygame.transform.scale(
-            self.masking_surface, (self.map_width, self.map_height)
-            )
-            print(f"Masking loaded: {masking_names} ({self.map_width}x{self.map_height})")
-        
-        if self.masking_surface is None:
-            print(f"WARNING: No masking file found, collision may not work!")
-        
-        # Fonts (hanya jika tidak headless)
-        if not self.headless:
-            self.font_large = pygame.font.SysFont("Arial", 70)
-            self.font_small = pygame.font.SysFont("Arial", 30)
-        else:
-            self.font_large = None
-            self.font_small = None
+        # Load assets via GameManager
+        self.game.load_track()
+        self.game.load_masking()
+    
+    def create_car(self) -> Motor:
+        """Create a Motor for training"""
+        spawn_x, spawn_y = self.game.get_spawn_position()
+        car = self.game.create_motor(spawn_x, spawn_y, color="pink", invincible=False)
+        car.velocity = car.max_speed
+        return car
     
     def eval_genomes(self, genomes, config):
         """
         Evaluate semua genome dalam satu generasi.
         Callback untuk NEAT.
-        
-        Args:
-            genomes: List of (genome_id, genome) tuples
-            config: NEAT config
         """
         self.generation += 1
         
@@ -153,28 +116,18 @@ class NEATTrainer:
             nets.append(net)
             genome.fitness = 0
             
-            # Pakai Motor class (sama dengan player)
-            car = Motor(self.spawn_x, self.spawn_y, color="pink")
-            car.angle = self.spawn_angle  # 0 = hadap kanan
-            car.start_angle = car.angle
-            car.set_track_surface(self.track_surface)
-            if self.masking_surface is not None:
-                car.set_masking_surface(self.masking_surface)
-            car.velocity = car.max_speed  # AI selalu jalan
+            car = self.create_car()
             cars.append(car)
         
-        # Camera
-        camera_x, camera_y = 0, 0
-        
-        # Max time per generation (seconds)
-        import time
+        # Timing
         max_gen_time = 60  # 60 detik per generasi
         gen_start_time = time.time()
-        best_lap_count = 0  # Track best lap untuk reset timer
+        best_lap_count = 0
         
         # Main loop
-        running = True
         frame_count = 0
+        running = True
+        
         while running:
             frame_count += 1
             
@@ -182,7 +135,7 @@ class NEATTrainer:
             if time.time() - gen_start_time > max_gen_time:
                 break
             
-            # Event handling (hanya jika tidak headless)
+            # Event handling (jika tidak headless)
             if not self.headless:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
@@ -198,55 +151,38 @@ class NEATTrainer:
                 
                 alive_count += 1
                 
-                # Get radar data
+                # Neural network decision
                 radar_data = car.get_radar_data()
-                
-                # Neural network decision - CONTINUOUS OUTPUT
                 output = net.activate(radar_data)
                 
-                # Output 0: Steering (-1 to +1)
-                # tanh activation naturally gives -1 to +1
+                # Continuous control
                 steering = max(-1, min(1, output[0]))
+                throttle = max(0.3, min(1, output[1]))
                 
-                # Output 1: Throttle (0 to 1)
-                # Clamp to 0-1 range, AI learns to control speed
-                throttle = max(0.3, min(1, output[1]))  # Min 0.3 supaya tidak berhenti total
-                
-                # Apply continuous control
                 car.set_ai_input(steering, throttle)
-                
-                # Update car
                 car.update()
                 
-                # Update fitness (sequential checkpoint system)
-                # Prioritas: distance > checkpoint progress > lap
-                
-                fitness = car.distance_traveled  # Base fitness = jarak tempuh
-                
-                # Checkpoint bonus (sequential checkpoint lebih bernilai)
-                # checkpoint_count = jumlah checkpoint yang sudah dilalui dalam urutan benar
-                fitness += car.checkpoint_count * 200  # 200 per checkpoint (lebih bernilai karena sequential)
-                
-                # Lap bonus (besar - berhasil complete semua checkpoint)
+                # Calculate fitness
+                fitness = car.distance_traveled
+                fitness += car.checkpoint_count * 200
                 if car.lap_count > 0:
-                    fitness += car.lap_count * 2000  # 2000 per lap
+                    fitness += car.lap_count * 2000
                 
-                # Kill car jika tidak mencapai checkpoint berikutnya dalam 60 detik
-                max_time_between_checkpoints = 20 * 60  # 60 detik * 60 FPS
+                # Kill jika stuck
+                max_time_between_checkpoints = 20 * 60
                 time_since_last_checkpoint = car.time_spent - car.last_checkpoint_time
                 if time_since_last_checkpoint > max_time_between_checkpoints:
                     car.alive = False
-                    car.is_alive = False
                 
                 genome.fitness = fitness
                 
-                # Reset timer jika ada lap baru (reward for progress)
+                # Reset timer jika lap baru
                 if car.lap_count > best_lap_count:
                     best_lap_count = car.lap_count
-                    gen_start_time = time.time()  # Reset timer!
-                    print(f"[TIMER RESET] Lap {best_lap_count} completed! Timer reset to 60s")
+                    gen_start_time = time.time()
+                    print(f"[TIMER RESET] Lap {best_lap_count} completed!")
                 
-                # Check win condition
+                # Check win
                 if car.lap_count >= self.target_laps:
                     self._handle_winner(genome, net, car, config)
                     return
@@ -255,84 +191,100 @@ class NEATTrainer:
             if alive_count == 0:
                 break
             
-            # Update camera (follow best car by fitness)
-            best_car = None
-            best_fitness = -1
-            for i, (car, net, (genome_id, genome)) in enumerate(zip(cars, nets, genomes)):
-                if car.alive and genome.fitness > best_fitness:
-                    best_fitness = genome.fitness
-                    best_car = car
-            
+            # Camera follow best car
+            best_car = self._get_best_car(cars, genomes)
             if best_car:
-                camera_x = int(best_car.x - self.screen_width / 2)
-                camera_y = int(best_car.y - self.screen_height / 2)
-                camera_x = max(0, min(camera_x, self.map_width - self.screen_width))
-                camera_y = max(0, min(camera_y, self.map_height - self.screen_height))
+                self.display.update_camera(
+                    best_car.x, best_car.y,
+                    self.game.map_width, self.game.map_height
+                )
             
-            # Render (skip jika headless atau berdasarkan interval)
+            # Render
             if not self.headless and frame_count % self.render_interval == 0:
-                self._render(cars, camera_x, camera_y, alive_count, len(cars))
-                pygame.display.flip()
+                self._render(cars, alive_count, len(cars))
             
-            self.clock.tick(0)  # Unlimited FPS untuk training cepat
+            self.display.clock.tick(0)  # Unlimited FPS
     
-    def _render(self, cars: List[Motor], camera_x: int, camera_y: int,
-                alive: int, total: int):
-        """Render frame"""
-        # Draw track
-        self.screen.blit(self.track_surface, (-camera_x, -camera_y))
+    def _get_best_car(self, cars: List[Motor], genomes) -> Optional[Motor]:
+        """Get car with highest fitness"""
+        best_car = None
+        best_fitness = -1
         
-        # Draw cars
+        for car, (genome_id, genome) in zip(cars, genomes):
+            if car.alive and genome.fitness > best_fitness:
+                best_fitness = genome.fitness
+                best_car = car
+        
+        return best_car
+    
+    def _render(self, cars: List[Motor], alive: int, total: int):
+        """Render frame"""
+        self.display.render_track(self.game.track_surface)
+        
+        # Draw alive cars
         for car in cars:
             if car.alive:
-                car.draw(self.screen, camera_x, camera_y)
+                self.display.render_motor(car)
         
         # Draw info
-        text = self.font_large.render(f"Generation: {self.generation}", True, (255, 255, 0))
-        rect = text.get_rect(center=(self.screen_width / 2, 100))
-        self.screen.blit(text, rect)
+        if self.display.font_large:
+            # Generation
+            text = self.display.font_large.render(
+                f"Generation: {self.generation}", True, (255, 255, 0)
+            )
+            rect = text.get_rect(center=(self.display.width // 2, 100))
+            self.display.screen.blit(text, rect)
+            
+            # Alive count
+            text = self.display.font_small.render(
+                f"Alive: {alive}/{total}", True, (255, 255, 255)
+            )
+            rect = text.get_rect(center=(self.display.width // 2, 200))
+            self.display.screen.blit(text, rect)
+            
+            # Best lap
+            best_lap = max((car.lap_count for car in cars if car.alive), default=0)
+            text = self.display.font_small.render(
+                f"Best Lap: {best_lap}/{self.target_laps}", True, (0, 255, 0)
+            )
+            rect = text.get_rect(center=(self.display.width // 2, 240))
+            self.display.screen.blit(text, rect)
         
-        text = self.font_small.render(f"Alive: {alive}/{total}", True, (255, 255, 255))
-        rect = text.get_rect(center=(self.screen_width / 2, 200))
-        self.screen.blit(text, rect)
-        
-        # Best lap info
-        best_lap = max((car.lap_count for car in cars if car.alive), default=0)
-        text = self.font_small.render(f"Best Lap: {best_lap}/{self.target_laps}", True, (0, 255, 0))
-        rect = text.get_rect(center=(self.screen_width / 2, 240))
-        self.screen.blit(text, rect)
-        
-        # pygame.display.flip() dipindah ke eval_genomes untuk kontrol render_interval
+        pygame.display.flip()
     
     def _handle_winner(self, genome, net, car: Motor, config):
         """Handle ketika ada winner"""
         self.winner_found = True
         
         print("\n" + "=" * 60)
-        print("🏆 TRAINING BERHASIL! 🏆")
+        print("TRAINING BERHASIL!")
         print(f"Motor menyelesaikan {self.target_laps} lap!")
         print(f"Generation: {self.generation}")
-        print(f"Total distance: {int(car.distance_traveled)}")
-        print(f"Time: {car.time_spent} frames")
+        print(f"Distance: {int(car.distance_traveled)}")
         print("=" * 60)
         
         # Save models
+        self._save_model(genome, net, 'winner')
+    
+    def _save_model(self, genome, net, prefix: str):
+        """Save genome dan network ke file"""
         models_dir = os.path.join(BASE_DIR, "models")
         os.makedirs(models_dir, exist_ok=True)
         
-        with open(os.path.join(models_dir, 'winner_genome.pkl'), 'wb') as f:
+        with open(os.path.join(models_dir, f'{prefix}_genome.pkl'), 'wb') as f:
             pickle.dump(genome, f)
-        with open(os.path.join(models_dir, 'winner_network.pkl'), 'wb') as f:
+        with open(os.path.join(models_dir, f'{prefix}_network.pkl'), 'wb') as f:
             pickle.dump(net, f)
         
         print(f"Model tersimpan di: {models_dir}")
     
-    def run(self, generations: int = 50) -> Optional[neat.DefaultGenome]:
+    def run(self, generations: int = 50, checkpoint_path: str = None) -> Optional[neat.DefaultGenome]:
         """
         Run NEAT training.
         
         Args:
             generations: Max generations
+            checkpoint_path: Path ke checkpoint untuk resume
             
         Returns:
             Best genome atau None
@@ -348,8 +300,12 @@ class NEATTrainer:
             self.config_path
         )
         
-        # Create population
-        population = neat.Population(config)
+        # Create or restore population
+        if checkpoint_path and os.path.exists(checkpoint_path):
+            print(f"Resuming from checkpoint: {checkpoint_path}")
+            population = neat.Checkpointer.restore_checkpoint(checkpoint_path)
+        else:
+            population = neat.Population(config)
         
         # Add reporters
         population.add_reporter(neat.StdOutReporter(True))
@@ -366,61 +322,10 @@ class NEATTrainer:
         # Run evolution
         winner = population.run(self.eval_genomes, generations)
         
-        # Save best genome
+        # Save best genome jika belum ada winner
         if winner and not self.winner_found:
-            models_dir = os.path.join(BASE_DIR, "models")
-            os.makedirs(models_dir, exist_ok=True)
-            
-            with open(os.path.join(models_dir, 'best_genome.pkl'), 'wb') as f:
-                pickle.dump(winner, f)
-            
             winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
-            with open(os.path.join(models_dir, 'best_network.pkl'), 'wb') as f:
-                pickle.dump(winner_net, f)
-            
-            print(f"\nBest genome saved to: {models_dir}")
+            self._save_model(winner, winner_net, 'best')
         
-        pygame.quit()
+        self.display.quit()
         return winner
-
-
-def main():
-    """Entry point untuk training"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Train AI Motor dengan NEAT")
-    parser.add_argument('--generations', '-g', type=int, default=50,
-                       help='Jumlah generasi (default: 50)')
-    parser.add_argument('--track', '-t', type=str, default='mandalika',
-                       help='Nama track (default: mandalika)')
-    parser.add_argument('--laps', '-l', type=int, default=15,
-                       help='Target lap untuk menang (default: 15)')
-    
-    args = parser.parse_args()
-    
-    # Config path
-    config_path = os.path.join(BASE_DIR, "config.txt")
-    
-    if not os.path.exists(config_path):
-        print(f"ERROR: Config tidak ditemukan: {config_path}")
-        sys.exit(1)
-    
-    print("=" * 60)
-    print("  TABRAK BAHLIL - NEAT AI Training")
-    print("=" * 60)
-    print(f"Track       : {args.track}")
-    print(f"Generations : {args.generations}")
-    print(f"Target Laps : {args.laps}")
-    print("=" * 60)
-    
-    trainer = NEATTrainer(
-        config_path=config_path,
-        track_name=args.track
-    )
-    trainer.target_laps = args.laps
-    
-    trainer.run(generations=args.generations)
-
-
-if __name__ == "__main__":
-    main()

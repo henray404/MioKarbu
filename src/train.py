@@ -65,6 +65,13 @@ def main():
         help='Render setiap N frame, misal 10 = render setiap 10 frame (default: 1)'
     )
     
+    parser.add_argument(
+        '--checkpoint', '-c',
+        type=str,
+        default=None,
+        help='Path ke checkpoint untuk resume training (contoh: neat_checkpoints/neat-checkpoint-94)'
+    )
+    
     args = parser.parse_args()
     
     # Config path (di root project)
@@ -85,6 +92,8 @@ def main():
     print(f"Target Laps : {args.laps}")
     print(f"Mode        : {mode_str}")
     print(f"Config      : {config_path}")
+    if args.checkpoint:
+        print(f"Checkpoint  : {args.checkpoint} (RESUME)")
     print("=" * 60)
     print()
     
@@ -97,9 +106,9 @@ def main():
     )
     trainer.target_laps = args.laps
     
-    # Run training
+    # Run training (dengan checkpoint jika ada)
     try:
-        winner = trainer.run(generations=args.generations)
+        winner = trainer.run(generations=args.generations, checkpoint_path=args.checkpoint)
         
         print("\nTraining selesai!")
         if winner:

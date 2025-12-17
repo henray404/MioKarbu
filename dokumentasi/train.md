@@ -1,10 +1,12 @@
-# 📁 train.py
+# train.py - Entry Point Training AI
 
-> Path: `src/train.py`
+> Lokasi: `src/train.py`
 
-## Deskripsi
+---
 
-Entry point untuk **training AI** menggunakan NEAT algorithm.
+## Deskripsi Umum
+
+File train.py adalah entry point untuk training AI menggunakan algoritma NEAT (NeuroEvolution of Augmenting Topologies). File ini menyediakan command line interface untuk mengonfigurasi berbagai parameter training.
 
 ---
 
@@ -14,166 +16,243 @@ Entry point untuk **training AI** menggunakan NEAT algorithm.
 python train.py [options]
 ```
 
-| Argument            | Short | Default   | Deskripsi                      |
-| ------------------- | ----- | --------- | ------------------------------ |
-| `--generations`     | `-g`  | 50        | Jumlah generasi training       |
-| `--track`           | `-t`  | mandalika | Nama track untuk training      |
-| `--laps`            | `-l`  | 15        | Target lap untuk menang        |
-| `--headless`        | -     | False     | Mode tanpa visualisasi (cepat) |
-| `--render-interval` | `-r`  | 1         | Render setiap N frame          |
+### Tabel Arguments
+
+| Argument          | Short | Type   | Default   | Deskripsi                       |
+| ----------------- | ----- | ------ | --------- | ------------------------------- |
+| --generations     | -g    | int    | 50        | Jumlah generasi training        |
+| --track           | -t    | string | mandalika | Nama file track (tanpa .png)    |
+| --laps            | -l    | int    | 15        | Target lap untuk winner         |
+| --headless        | -     | flag   | False     | Training tanpa visualisasi      |
+| --render-interval | -r    | int    | 1         | Render setiap N frame           |
+| --checkpoint      | -c    | string | None      | Path ke checkpoint untuk resume |
+
+### Penjelasan Detail Arguments
+
+**--generations (-g)**
+
+Jumlah generasi yang akan dijalankan. Satu generasi = satu siklus evaluasi populasi + seleksi + reproduksi. Lebih banyak generasi = AI lebih baik tapi butuh waktu lebih lama.
+
+Panduan:
+
+- 10-30: Quick test, hasil belum optimal
+- 50-100: Training standar
+- 200+: Training intensif untuk hasil terbaik
+
+**--track (-t)**
+
+Nama track yang digunakan untuk training. File track harus ada di `assets/tracks/{nama}.png`. Track yang berbeda memiliki tingkat kesulitan berbeda.
+
+**--laps (-l)**
+
+Jumlah lap yang harus dicapai untuk dianggap "winner". Jika ada genome yang mencapai target ini, training otomatis berhenti dan model disimpan.
+
+**--headless**
+
+Mode tanpa visualisasi grafis. Training berjalan 3-5x lebih cepat karena tidak perlu render frame. Cocok untuk training production di server.
+
+**--render-interval (-r)**
+
+Render visual setiap N frame. Contoh: `--render-interval 10` berarti render 1x setiap 10 frame. Kompromi antara speed dan visibility.
+
+**--checkpoint (-c)**
+
+Path ke checkpoint file untuk melanjutkan training yang terputus. Checkpoint otomatis disimpan setiap 5 generasi di folder `neat_checkpoints/`.
 
 ---
 
 ## Contoh Penggunaan
 
+### Training Basic
+
 ```bash
-# Default training
+# Training default (50 generasi, visual)
 python train.py
 
-# 100 generasi, track "new"
+# 100 generasi dengan track "new"
 python train.py -g 100 --track new
 
-# Headless mode (3-5x lebih cepat)
+# Training dengan target 10 lap
+python train.py -g 100 --laps 10
+```
+
+### Training Cepat (Headless)
+
+```bash
+# Headless mode - 3-5x lebih cepat
 python train.py --headless
 
-# Reduced render (tetap ada visualisasi, lebih cepat)
-python train.py --render-interval 10
+# Headless dengan 200 generasi
+python train.py -g 200 --headless
 
-# Kombinasi lengkap
-python train.py -g 200 --track new --headless
+# Reduced render (visual tapi lebih cepat)
+python train.py --render-interval 10
+```
+
+### Resume Training
+
+```bash
+# Lihat checkpoint yang tersedia
+ls neat_checkpoints/
+# Output: neat-checkpoint-5  neat-checkpoint-10  neat-checkpoint-15 ...
+
+# Resume dari checkpoint tertentu
+python train.py -c neat_checkpoints/neat-checkpoint-50
+
+# Resume dan tambah 50 generasi lagi
+python train.py -c neat_checkpoints/neat-checkpoint-50 -g 50
+```
+
+### Kombinasi Lengkap
+
+```bash
+# Training intensif: 200 generasi, headless, track baru, 20 lap target
+python train.py -g 200 --headless --track new --laps 20
+
+# Resume training dengan reduced render
+python train.py -c neat_checkpoints/neat-checkpoint-100 --render-interval 5
 ```
 
 ---
 
-## Flow
+## Alur Kerja Program
+
+```
++------------------------------------------------------------------+
+|                       TRAIN.PY FLOW                               |
++------------------------------------------------------------------+
+|                                                                   |
+|  1. PARSE ARGUMENTS                                               |
+|     |                                                             |
+|     +-- argparse.ArgumentParser()                                 |
+|     +-- Validate dan set defaults                                 |
+|                                                                   |
+|  2. SETUP PATHS                                                   |
+|     |                                                             |
+|     +-- config_path = "config.txt" (NEAT config)                  |
+|     +-- Check file exists                                         |
+|                                                                   |
+|  3. PRINT INFO                                                    |
+|     |                                                             |
+|     +-- Track, Generations, Target Laps                           |
+|     +-- Mode (headless/visual)                                    |
+|     +-- Checkpoint jika resume                                    |
+|                                                                   |
+|  4. CREATE TRAINER                                                |
+|     |                                                             |
+|     +-- NEATTrainer(config_path, track_name, headless, ...)       |
+|     +-- Set target_laps                                           |
+|                                                                   |
+|  5. RUN TRAINING                                                  |
+|     |                                                             |
+|     +-- trainer.run(generations, checkpoint_path)                 |
+|     |                                                             |
+|     +-- [Untuk setiap generasi]                                   |
+|     |   +-- Evaluasi semua genome                                 |
+|     |   +-- Hitung fitness                                        |
+|     |   +-- Seleksi dan reproduksi                                |
+|     |   +-- Save checkpoint (setiap 5 gen)                        |
+|     |                                                             |
+|     +-- Return winner atau best genome                            |
+|                                                                   |
+|  6. REPORT RESULTS                                                |
+|     |                                                             |
+|     +-- Print best fitness                                        |
+|     +-- Model location                                            |
+|                                                                   |
+|  7. HANDLE INTERRUPT (Ctrl+C)                                     |
+|     |                                                             |
+|     +-- Load latest checkpoint                                    |
+|     +-- Save best genome ke interrupted_genome.pkl                |
+|                                                                   |
++------------------------------------------------------------------+
+```
+
+---
+
+## Fitur Auto-save on Interrupt
+
+Jika training dihentikan dengan Ctrl+C, program akan otomatis menyimpan best genome dari checkpoint terakhir.
 
 ```python
-def main():
-    # 1. Parse arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--generations', '-g', type=int, default=50)
-    parser.add_argument('--track', '-t', type=str, default='mandalika')
-    parser.add_argument('--laps', '-l', type=int, default=15)
-    parser.add_argument('--headless', action='store_true')
-    parser.add_argument('--render-interval', '-r', type=int, default=1)
-    args = parser.parse_args()
+except KeyboardInterrupt:
+    print("Training dihentikan oleh user")
 
-    # 2. Setup config path
-    config_path = os.path.join(BASE_DIR, "config.txt")
+    # Cari checkpoint terakhir
+    checkpoint_dir = "neat_checkpoints"
+    checkpoints = [f for f in os.listdir(checkpoint_dir)
+                   if f.startswith("neat-checkpoint-")]
 
-    # 3. Print info
-    print("=" * 60)
-    print("  TABRAK BAHLIL - NEAT AI Training")
-    print("=" * 60)
-    print(f"Track       : {args.track}")
-    print(f"Generations : {args.generations}")
-    print(f"Target Laps : {args.laps}")
-    print(f"Mode        : {'HEADLESS' if args.headless else 'Visual'}")
+    if checkpoints:
+        # Sort by generation number
+        checkpoints.sort(key=lambda x: int(x.split("-")[-1]))
+        latest = os.path.join(checkpoint_dir, checkpoints[-1])
 
-    # 4. Create trainer
-    trainer = NEATTrainer(
-        config_path=config_path,
-        track_name=args.track,
-        headless=args.headless,
-        render_interval=args.render_interval
-    )
-    trainer.target_laps = args.laps
+        # Load dan save best genome
+        pop = neat.Checkpointer.restore_checkpoint(latest)
+        best = pop.best_genome
 
-    # 5. Run training
-    winner = trainer.run(generations=args.generations)
-
-    # 6. Report results
-    if winner:
-        print(f"Best fitness: {winner.fitness:.2f}")
-        print("Model tersimpan di: models/")
+        if best:
+            with open('models/interrupted_genome.pkl', 'wb') as f:
+                pickle.dump(best, f)
+            print("Best genome saved to: models/interrupted_genome.pkl")
+            print(f"Fitness: {best.fitness:.2f}")
 ```
 
 ---
 
 ## Output Files
 
-Training akan menghasilkan file di `models/`:
+### Folder models/
 
-| File                 | Deskripsi                              |
-| -------------------- | -------------------------------------- |
-| `winner_genome.pkl`  | Genome yang mencapai target laps       |
-| `winner_network.pkl` | Neural network dari winner             |
-| `best_genome.pkl`    | Genome terbaik (jika tidak ada winner) |
-| `best_network.pkl`   | Network dari best genome               |
+| File                   | Kondisi                             | Deskripsi                     |
+| ---------------------- | ----------------------------------- | ----------------------------- |
+| winner_genome.pkl      | Ada genome yang mencapai target lap | Genome pemenang               |
+| winner_network.pkl     | Ada winner                          | Neural network dari winner    |
+| best_genome.pkl        | Training selesai tanpa winner       | Genome terbaik                |
+| best_network.pkl       | Training selesai tanpa winner       | Network dari best             |
+| interrupted_genome.pkl | Training di-interrupt (Ctrl+C)      | Best dari checkpoint terakhir |
 
-Dan checkpoints di `neat_checkpoints/`:
+### Folder neat_checkpoints/
 
-| File                | Deskripsi                    |
-| ------------------- | ---------------------------- |
-| `neat-checkpoint-X` | Checkpoint setiap 5 generasi |
-
----
-
-## Mode Training
-
-### Visual Mode (Default)
-
-```bash
-python train.py
-```
-
-- Window pygame ditampilkan
-- Bisa melihat motor bergerak
-- Lebih lambat tapi informatif
-
-### Headless Mode
-
-```bash
-python train.py --headless
-```
-
-- Tanpa window
-- 3-5x lebih cepat
-- Untuk production training
-
-### Reduced Render
-
-```bash
-python train.py --render-interval 10
-```
-
-- Window tetap ada
-- Render setiap 10 frame
-- Kompromi speed vs visibility
+| File               | Deskripsi                     |
+| ------------------ | ----------------------------- |
+| neat-checkpoint-5  | State populasi di generasi 5  |
+| neat-checkpoint-10 | State populasi di generasi 10 |
+| ...                | Checkpoint setiap 5 generasi  |
 
 ---
 
-## Diagram
+## Tips Optimasi Training
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    TRAIN.PY FLOW                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  $ python train.py -g 100 --track new --headless            │
-│     │                                                        │
-│     ├── Parse arguments                                      │
-│     │                                                        │
-│     ├── Create NEATTrainer                                   │
-│     │      ├── config_path = "config.txt"                    │
-│     │      ├── track_name = "new"                            │
-│     │      ├── headless = True                               │
-│     │      └── render_interval = 1                           │
-│     │                                                        │
-│     └── trainer.run(generations=100)                         │
-│            │                                                 │
-│            ├── [Generation 1]                                │
-│            │      └── Evaluate 150 genomes                   │
-│            ├── [Generation 2]                                │
-│            │      └── Best survive, mutate                   │
-│            ├── ...                                           │
-│            └── [Generation 100]                              │
-│                   └── Save best to models/                   │
-│                                                              │
-│  Output:                                                     │
-│  - models/winner_genome.pkl                                  │
-│  - models/winner_network.pkl                                 │
-│  - neat_checkpoints/neat-checkpoint-*                        │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
+### Untuk Training Lebih Cepat
+
+1. Gunakan `--headless` untuk skip rendering
+2. Gunakan `--render-interval 10` jika butuh visual sesekali
+3. Kurangi `--laps` untuk testing
+4. Gunakan hardware dengan CPU yang lebih cepat
+
+### Untuk Hasil Lebih Baik
+
+1. Gunakan lebih banyak `--generations` (200+)
+2. Tingkatkan `--laps` untuk AI yang lebih reliable
+3. Edit `config.txt` untuk tuning parameter NEAT
+4. Pastikan track masking sudah benar
+
+### Troubleshooting
+
+**Training terlalu lambat:**
+
+- Gunakan `--headless`
+- Kurangi `pop_size` di config.txt (tapi bisa kurangi kualitas)
+
+**AI tidak improve:**
+
+- Cek masking track sudah benar
+- Tingkatkan `--generations`
+- Coba tuning parameter di config.txt
+
+**Training terputus:**
+
+- Gunakan `--checkpoint` untuk resume
+- Check file interrupted_genome.pkl

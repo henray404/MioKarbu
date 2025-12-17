@@ -24,11 +24,11 @@ neat_checkpoints/
 # Trained models (optional - uncomment jika tidak mau commit)
 # models/
 # *.pkl
-dokumentasi/ai/
-dokumentasi/core/
-dokumentasi/main.md
-dokumentasi/train.md
-dokumentasi/config.md
+# dokumentasi/ai/
+# dokumentasi/core/
+# dokumentasi/main.md
+# dokumentasi/train.md
+# dokumentasi/config.md
 # Temporary files
 *.tmp
 *.log

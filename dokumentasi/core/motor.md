@@ -1,351 +1,393 @@
-# 📁 motor.py
+# motor.py - Class Motor
 
-> Path: `src/core/motor.py`
-
-## Deskripsi
-
-**Class terpenting dalam game!** Menghandle semua logic untuk motor baik player maupun AI:
-
-- Physics (speed, steering, drift, grip)
-- Collision detection
-- Checkpoint & lap counting
-- AI radar system
+> Lokasi: `src/core/motor.py`
 
 ---
 
-## Class: `Motor`
+## Deskripsi Umum
 
-### Constructor
+Class Motor adalah entity utama dalam game yang merepresentasikan kendaraan motor baik untuk player maupun AI. Class ini menggunakan **Composition Pattern** dimana berbagai tanggung jawab dipisahkan ke komponen-komponen terpisah.
 
-```python
-def __init__(self, x, y, color="pink")
-```
+Pendekatan composition ini dipilih karena:
 
-| Parameter | Deskripsi                            |
-| --------- | ------------------------------------ |
-| `x, y`    | Posisi spawn awal                    |
-| `color`   | Nama warna motor (untuk load sprite) |
+1. **Separation of Concerns**: Setiap komponen fokus pada satu tanggung jawab
+2. **Reusability**: Komponen bisa digunakan ulang atau diganti
+3. **Testability**: Lebih mudah untuk testing unit
+4. **Maintainability**: Perubahan di satu area tidak mempengaruhi area lain
 
 ---
 
-## 📐 Physics Constants
-
-### Speed & Acceleration
-
-```python
-self.acceleration_rate = 0.12      # Akselerasi per frame
-self.brake_power = 0.25            # Kekuatan rem
-self.friction = 0.985              # Gesekan (1.0 = tanpa gesekan)
-self.max_speed = 30                # Kecepatan maksimum
-```
-
-### Steering - Speed Dependent
-
-```python
-self.base_steering_rate = 4.5      # Derajat/frame saat lambat
-self.min_steering_rate = 1.2       # Derajat/frame saat max speed
-```
-
-**Rumus:**
+## Arsitektur Composition Pattern
 
 ```
-steering_rate = base - (base - min) × speed_ratio
-
-Dimana speed_ratio = velocity / max_speed (0.0 - 1.0)
-```
-
-**Contoh:**
-| Speed | speed_ratio | Steering Rate |
-|-------|-------------|---------------|
-| 0 | 0.0 | 4.5°/frame |
-| 15 | 0.5 | 2.85°/frame |
-| 30 | 1.0 | 1.2°/frame |
-
-### Grip & Traction
-
-```python
-self.grip = 1.0                    # Grip saat ini (0.0-1.0)
-self.base_grip = 1.0               # Grip dasar
-self.turn_grip_loss = 0.15         # Kehilangan grip saat belok tajam
-self.speed_grip_factor = 0.7       # Faktor grip di speed tinggi
-```
-
-### Turn Physics
-
-```python
-self.turn_speed_penalty = 0.02     # Kehilangan speed saat belok (2%)
-self.sharp_turn_threshold = 0.5    # Threshold belok tajam
-self.understeer_factor = 0.3       # Understeer di speed tinggi (30%)
-```
-
-### Inertia & Weight Transfer
-
-```python
-self.lateral_velocity = 0          # Velocity samping (sliding)
-self.lateral_friction = 0.92       # Gesekan lateral
-self.weight_transfer = 0           # Weight transfer saat gas/rem
++------------------------------------------------------------------+
+|                          MOTOR CLASS                              |
+|                                                                   |
+|  Position & State:                                                |
+|  - x, y (koordinat)                                               |
+|  - angle (sudut hadap dalam radian)                               |
+|  - alive (status hidup/mati)                                      |
+|                                                                   |
+|  +------------------------+  +---------------------------+        |
+|  |    PHYSICS ENGINE      |  |    COLLISION HANDLER      |        |
+|  |------------------------|  |---------------------------|        |
+|  | - velocity             |  | - track_surface           |        |
+|  | - steering_rate        |  | - masking_surface         |        |
+|  | - grip                 |  | - collision corners       |        |
+|  | - drift mechanics      |  | - zone classification     |        |
+|  +------------------------+  +---------------------------+        |
+|                                                                   |
+|  +------------------------+  +---------------------------+        |
+|  |  CHECKPOINT TRACKER    |  |     RADAR (AI Only)       |        |
+|  |------------------------|  |---------------------------|        |
+|  | - lap_count            |  | - 5 directional rays      |        |
+|  | - checkpoint_count     |  | - masking-aware           |        |
+|  | - timing               |  | - normalized output       |        |
+|  +------------------------+  +---------------------------+        |
+|                                                                   |
+|  +------------------------+                                       |
+|  |   FITNESS CALCULATOR   |                                       |
+|  |------------------------|                                       |
+|  | - distance_traveled    |                                       |
+|  | - unique_positions     |                                       |
+|  | - fitness scoring      |                                       |
+|  +------------------------+                                       |
+|                                                                   |
++------------------------------------------------------------------+
 ```
 
 ---
 
-## 🎮 Method: `handle_input(keys)`
+## Komponen dan File Terkait
 
-Kontrol player dengan physics realistis.
+| Komponen          | File          | Tanggung Jawab                                            |
+| ----------------- | ------------- | --------------------------------------------------------- |
+| PhysicsEngine     | physics.py    | Semua kalkulasi fisika: akselerasi, steering, grip, drift |
+| CollisionHandler  | collision.py  | Deteksi tabrakan dengan track, wall, checkpoint           |
+| CheckpointTracker | checkpoint.py | Penghitungan lap dan validasi checkpoint                  |
+| Radar             | radar.py      | Raycast sensing untuk input AI                            |
+| FitnessCalculator | radar.py      | Penghitungan skor fitness untuk training                  |
 
-### 1. Acceleration & Braking
+---
 
-```python
-if keys[K_w]:  # Gas
-    speed_ratio = abs(velocity) / max_speed
-    accel_modifier = 1.0 - (speed_ratio * 0.5)  # Drag effect
-    velocity += acceleration_rate * accel_modifier
-    weight_transfer = 0.3
-elif keys[K_s]:  # Rem
-    velocity -= brake_power
-    weight_transfer = -0.5
-```
-
-**Drag Effect:**
-Akselerasi berkurang mendekati max speed.
-
-```
-effective_accel = base_accel × (1 - speed_ratio × 0.5)
-
-Di 100% speed: effective = base × 0.5 (50% akselerasi)
-```
-
-### 2. Speed-Dependent Steering
+## Constructor
 
 ```python
-speed_ratio = abs(velocity) / max_speed
-steering_rate = base_steering_rate - (
-    (base_steering_rate - min_steering_rate) * speed_ratio
-)
+def __init__(self, x: float, y: float, color: str = "pink"):
+    # Posisi dan sudut awal
+    self.x = x
+    self.y = y
+    self.angle = 0  # dalam radian, 0 = menghadap kanan
+    self.color = color
+
+    # Dimensi motor (untuk collision box)
+    self.length = 140
+    self.width = 80
+
+    # Inisialisasi komponen-komponen
+    self.physics = PhysicsEngine(PhysicsConfig(
+        length=self.length,
+        width=self.width
+    ))
+
+    self.collision = CollisionHandler(
+        length=self.length,
+        width=self.width
+    )
+
+    self.checkpoint = CheckpointTracker(
+        start_x=x,
+        start_y=y
+    )
+
+    self.radar = Radar(RadarConfig())
+
+    self.fitness_calc = FitnessCalculator(
+        start_x=x,
+        start_y=y
+    )
 ```
 
-### 3. Normal Steering with Understeer
+### Penjelasan Parameter
+
+- **x, y**: Koordinat spawn awal motor dalam pixel. Sistem koordinat menggunakan konvensi pygame dimana (0,0) di pojok kiri atas.
+- **color**: String nama warna yang digunakan untuk memilih sprite sheet. Contoh: "pink", "hijau", dll.
+
+---
+
+## Property Delegation
+
+Motor menggunakan property untuk mendelegasikan akses ke komponen-komponen internal. Ini memungkinkan kode eksternal mengakses data tanpa perlu tahu struktur internal.
 
 ```python
-steer_amount = radians(steering_rate) * steering_input
-understeer = 1.0 - (speed_ratio * understeer_factor)
-steer_amount *= understeer
-angle += steer_amount
-```
+@property
+def velocity(self):
+    """Kecepatan motor saat ini dari PhysicsEngine."""
+    return self.physics.state.velocity
 
-**Understeer:**
-Di kecepatan tinggi, motor cenderung lurus.
+@velocity.setter
+def velocity(self, value):
+    """Set kecepatan motor. Biasanya digunakan untuk AI."""
+    self.physics.state.velocity = value
 
-```
-effective_steer = base_steer × (1 - speed_ratio × 0.3)
+@property
+def max_speed(self):
+    """Kecepatan maksimum dari konfigurasi physics."""
+    return self.physics.config.max_speed
 
-Di 100% speed: effective = base × 0.7 (70% efektivitas steering)
-```
+@property
+def lap_count(self):
+    """Jumlah lap yang sudah diselesaikan."""
+    return self.checkpoint.state.lap_count
 
-### 4. Speed Penalty saat Belok
+@property
+def checkpoint_count(self):
+    """Jumlah checkpoint yang sudah dilewati dalam lap saat ini."""
+    return self.checkpoint.state.checkpoint_count
 
-```python
-if abs(steering_input) > 0:
-    turn_intensity = abs(steering_input) * speed_ratio
-    speed_loss = turn_speed_penalty * turn_intensity
-    velocity *= (1.0 - speed_loss)
-```
-
-### 5. Drift Mode
-
-```python
-if is_drifting and steering_input != 0:
-    drift_steer = base_steering_rate * 1.5  # 50% lebih tajam
-    angle += radians(drift_steer) * steering_input
-
-    drift_angle += steering_input * 0.08
-    drift_angle = clamp(drift_angle, -0.5, 0.5)  # Max ~28°
-
-    velocity *= 0.995  # Speed penalty
-    grip = max(0.3, grip - 0.05)  # Lose grip
+@property
+def distance_traveled(self):
+    """Total jarak yang sudah ditempuh (untuk fitness)."""
+    return self.fitness_calc.state.distance_traveled
 ```
 
 ---
 
-## 🤖 Method: `steer(direction)`
+## Method Utama
 
-Steering untuk AI dengan physics yang sama.
+### handle_input(keys) - Kontrol Player
+
+Method ini memproses input keyboard dari player dan mengaplikasikan ke physics engine.
+
+```python
+def handle_input(self, keys):
+    """
+    Proses input keyboard untuk kontrol player.
+
+    Args:
+        keys: pygame.key.get_pressed() result
+    """
+    # 1. THROTTLE
+    # W = gas maju, S = rem/mundur, tidak ada = friction
+    if keys[pygame.K_w]:
+        self.physics.apply_acceleration(1.0)
+    elif keys[pygame.K_s]:
+        self.physics.apply_acceleration(-1.0)
+    else:
+        self.physics.apply_acceleration(0)
+
+    # 2. STEERING
+    # A = belok kiri (-1), D = belok kanan (+1)
+    steering_input = 0
+    if keys[pygame.K_a]:
+        steering_input = -1
+    elif keys[pygame.K_d]:
+        steering_input = 1
+
+    # 3. DRIFT
+    # Space atau Shift = mode drift
+    is_drifting = (keys[pygame.K_SPACE] or
+                   keys[pygame.K_LSHIFT] or
+                   keys[pygame.K_RSHIFT])
+
+    # 4. APPLY STEERING
+    # PhysicsEngine menghitung perubahan angle berdasarkan
+    # steering input, kecepatan, dan mode drift
+    angle_change = self.physics.apply_steering(
+        steering_input,
+        is_drifting
+    )
+    self.angle += angle_change
+```
+
+### Penjelasan Alur Input
+
+1. **Throttle**: Input W/S dikonversi ke nilai throttle (-1 sampai 1) dan dikirim ke PhysicsEngine. Engine akan menangani akselerasi dengan drag effect dan friction.
+
+2. **Steering**: Input A/D dikonversi ke steering input (-1 sampai 1). Tidak ada angka antara karena keyboard bersifat digital.
+
+3. **Drift**: Jika tombol drift ditekan bersamaan dengan steering, motor memasuki mode drift dengan steering yang lebih tajam tapi speed penalty.
+
+4. **Apply**: PhysicsEngine menghitung perubahan angle yang diperlukan dengan memperhitungkan kecepatan saat ini (speed-dependent steering).
+
+---
+
+### steer(direction) - Kontrol AI
+
+Method yang lebih sederhana untuk AI karena tidak memerlukan handling throttle (AI selalu max speed).
 
 ```python
 def steer(self, direction: int):
-    # direction: -1 (kanan), 0 (lurus), 1 (kiri)
+    """
+    Steering untuk AI.
 
-    speed_ratio = abs(velocity) / max_speed
+    Args:
+        direction: -1 (kanan), 0 (lurus), 1 (kiri)
 
-    # Speed-dependent steering rate
-    current_steer_rate = base_steering_rate - (
-        (base_steering_rate - min_steering_rate) * speed_ratio
-    )
-
-    # Understeer
-    understeer = 1.0 - (speed_ratio * understeer_factor)
-    steer_amount = radians(current_steer_rate) * understeer
-
-    if direction == 1:
-        angle += steer_amount
-    elif direction == -1:
-        angle -= steer_amount
-
-    # Speed penalty
-    if direction != 0:
-        velocity *= (1.0 - turn_speed_penalty * speed_ratio)
+    Note:
+        Arah sesuai dengan konvensi:
+        - Positive angle = counter-clockwise
+        - direction 1  = angle bertambah = belok kiri
+        - direction -1 = angle berkurang = belok kanan
+    """
+    angle_change = self.physics.apply_steering(float(direction))
+    self.angle += angle_change
 ```
 
 ---
 
-## 📡 AI Radar System
+### update() - Update Loop Utama
 
-### Konstanta
-
-```python
-self.radar_angles = [-90, -45, 0, 45, 90]  # Derajat relatif
-self.max_radar_length = 300  # Pixel
-self.num_radars = 5
-```
-
-### Method: `_update_radars(track_surface)`
-
-**Raycast Algorithm:**
+Method yang dipanggil setiap frame untuk mengupdate posisi dan state motor.
 
 ```python
-for degree in radar_angles:
-    length = 0
-    while length < max_radar_length:
-        # Hitung posisi
-        radar_angle = radians(360 - (angle_deg + degree))
-        x = int(self.x + cos(radar_angle) * length)
-        y = int(self.y + sin(radar_angle) * length)
+def update(self):
+    """
+    Update posisi dan state motor setiap frame.
 
-        # Cek wall (warna merah)
-        if is_red_wall(x, y):
-            break
+    Alur:
+    1. Hitung delta posisi dari physics
+    2. Check collision di posisi baru
+    3. Handle hasil collision
+    4. Update radar untuk AI
+    5. Update fitness tracking
+    6. Check dan process checkpoint/lap
+    """
+    # 1. MOVEMENT
+    # PhysicsEngine menghitung delta posisi berdasarkan
+    # angle dan velocity saat ini
+    dx, dy = self.physics.calculate_movement(self.angle)
+    new_x = self.x + dx
+    new_y = self.y + dy
 
-        length += 5  # Step
+    # 2. COLLISION CHECK
+    # CollisionHandler memeriksa posisi baru terhadap masking
+    result = self.collision.check_masking_collision(
+        new_x, new_y, self.angle
+    )
 
-    radars.append(((x, y), length))
+    # 3. HANDLE COLLISION
+    if result['collided']:
+        # Nabrak wall - handle bounce/explode
+        self._handle_wall_collision()
+    elif result['slow_zone']:
+        # Di slow zone - kurangi speed
+        self.physics.state.velocity *= 0.99
+        self.x = new_x
+        self.y = new_y
+    else:
+        # OK - update posisi
+        self.x = new_x
+        self.y = new_y
+
+    # 4. UPDATE RADAR
+    # Untuk AI sensing (tidak berpengaruh untuk player)
+    surface = self.collision.get_surface_for_radar()
+    if surface:
+        self.radar.update(self.x, self.y, self.angle, surface)
+
+    # 5. FITNESS TRACKING
+    # Untuk AI training
+    self.fitness_calc.update(self.x, self.y, angle_change)
+
+    # 6. CHECKPOINT
+    if result['checkpoint'] > 0:
+        self.checkpoint.process_checkpoint(
+            self.x, self.y,
+            result['checkpoint'],
+            current_time
+        )
+    else:
+        # Clear checkpoint flag jika sudah keluar
+        self.checkpoint.clear_checkpoint_flag()
+
+    # 7. LAP CHECK
+    lap_result = self.checkpoint.check_lap(
+        self.x, self.y, current_time, self.invincible
+    )
+    if lap_result['should_die']:
+        self.alive = False
 ```
 
-**Matematika:**
+---
 
-```
-Position(t) = Origin + Direction × t
-
-Direction = (cos(θ), sin(θ))
-t = jarak dari origin
-```
-
-### Method: `get_radar_data()`
-
-Return data ternormalisasi untuk neural network.
+### get_radar_data() - Data untuk Neural Network
 
 ```python
 def get_radar_data(self):
-    data = [int(radar[1] / 30) for radar in self.radars]
-    return data  # 5 values, scale 0-10
+    """
+    Get data sensor untuk input neural network.
+
+    Returns:
+        List[int]: 5 nilai jarak ternormalisasi (0-10)
+
+    Format output:
+        [left_90, left_45, front, right_45, right_90]
+
+    Nilai:
+        0  = sangat dekat wall (bahaya)
+        10 = jauh dari wall (aman)
+    """
+    return self.radar.get_data()
 ```
 
 ---
 
-## 🏁 Checkpoint System
+## Penggunaan
 
-### Warna Checkpoint (Sequential)
-
-| CP  | Warna   | RGB Condition       |
-| --- | ------- | ------------------- |
-| 1   | Hijau   | g>150, r<150, b<150 |
-| 2   | Cyan    | g>150, b>150, r<150 |
-| 3   | Kuning  | r>150, g>150, b<150 |
-| 4   | Magenta | r>150, b>150, g<150 |
-
-### Logic
+### Untuk Player
 
 ```python
-# Harus sequential
-if detected_cp == expected_checkpoint:
-    checkpoint_count += 1
-    expected_checkpoint = (expected_checkpoint % 4) + 1
-    print(f"[CP OK] CP{detected_cp} passed!")
+# Setup
+player = Motor(spawn_x, spawn_y, color="hijau")
+player.set_masking_surface(masking_surface)
+player.invincible = True  # Player tidak mati saat nabrak
+
+# Game loop
+while running:
+    keys = pygame.key.get_pressed()
+    player.handle_input(keys)
+    player.update()
+    player.draw(screen, camera_x, camera_y)
 ```
 
-### Lap Validation
+### Untuk AI
 
 ```python
-# Di _check_lap()
-if checkpoint_count >= 4:  # Semua checkpoint dilalui
-    lap_count += 1
-    checkpoint_count = 0
-    expected_checkpoint = 1  # Reset
+# Setup
+ai = Motor(spawn_x, spawn_y, color="pink")
+ai.set_masking_surface(ai_masking_surface)
+
+# Game/Training loop
+while running:
+    # Maintain constant speed
+    ai.velocity = ai.max_speed
+
+    # Get sensor data
+    radar_data = ai.get_radar_data()  # [5, 7, 10, 8, 4]
+
+    # Neural network decision
+    output = network.activate(radar_data)
+    action = output.index(max(output))  # 0, 1, atau 2
+
+    # Apply steering
+    if action == 0:
+        ai.steer(1)    # Belok kiri
+    elif action == 1:
+        pass           # Lurus
+    elif action == 2:
+        ai.steer(-1)   # Belok kanan
+
+    ai.update()
 ```
 
 ---
 
-## 🔄 Collision Detection
+## Lihat Juga
 
-### Masking Colors
+Untuk penjelasan detail setiap komponen:
 
-| Warna     | Kondisi      | Aksi                     |
-| --------- | ------------ | ------------------------ |
-| Hitam     | avg < 50     | Track OK                 |
-| Putih/Abu | avg > 50     | Slow zone (speed × 0.99) |
-| Merah     | r>150, g<100 | Wall (bounce/explode)    |
-
-### Wall Collision
-
-```python
-if is_red:
-    if abs(velocity) > wall_explode_speed:  # > 8
-        alive = False  # Meledak!
-    else:
-        velocity = -velocity * 0.4  # Bounce back
-        x, y = prev_x, prev_y
-```
-
----
-
-## 📊 Speedometer
-
-```python
-def get_speed_kmh(self):
-    return int(abs(velocity) * 7.5)
-```
-
-**Scale:**
-| velocity | km/h |
-|----------|------|
-| 0 | 0 |
-| 15 | 112 |
-| 30 | 225 |
-
----
-
-## Diagram Physics
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    MOTOR PHYSICS FLOW                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Input (W/A/S/D/Space)                                       │
-│     │                                                        │
-│     ├── handle_input()                                       │
-│     │      ├── Acceleration with drag                        │
-│     │      ├── Calculate speed_ratio                         │
-│     │      ├── Calculate steering_rate (speed-dependent)    │
-│     │      ├── Apply understeer                              │
-│     │      ├── Apply speed penalty                           │
-│     │      └── Handle drift if Space pressed                 │
-│     │                                                        │
-│     └── update()                                             │
-│            ├── Calculate new position                        │
-│            ├── Check collision                               │
-│            │      ├── Slow zone → speed × 0.99               │
-│            │      └── Wall → bounce or explode               │
-│            ├── Update checkpoints                            │
-│            └── Check lap completion                          │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
+- [physics.md](physics.md) - PhysicsEngine dengan rumus fisika lengkap
+- [collision.md](collision.md) - CollisionHandler dengan masking colors
+- [checkpoint.md](checkpoint.md) - CheckpointTracker dengan sequential system
+- [radar.md](radar.md) - Radar dan FitnessCalculator untuk AI
