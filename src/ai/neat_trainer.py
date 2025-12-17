@@ -1,7 +1,4 @@
 """
-NEAT Trainer untuk Tabrak Bahlil - AI Motor Racing
-===================================================
-
 Class ini menghandle semua logic training NEAT:
 - Load config
 - Evaluasi fitness setiap genome
@@ -37,7 +34,7 @@ class NEATTrainer:
         visualize: Apakah menampilkan visualisasi training
     """
     
-    def __init__(self, config_path: str, track_name: str = "japan", visualize: bool = True):
+    def __init__(self, config_path: str, track_name: str = "map-2", visualize: bool = True):
         """
         Inisialisasi trainer.
         

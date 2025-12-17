@@ -1,10 +1,4 @@
-"""
-Display Manager Module
-======================
 
-Mengelola pygame display, rendering, dan UI.
-Digunakan oleh main.py.
-"""
 
 import pygame
 from typing import List, Optional, Tuple

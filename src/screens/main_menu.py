@@ -16,36 +16,37 @@ class MainMenuScreen(ScreenBase):
         
         # --- AUDIO ---
         music_path = os.path.join(asset_root, "audio", "lobby.mp3")
-        try:
-            pygame.mixer.music.load(music_path)
-            pygame.mixer.music.set_volume(0.2)
-            if not pygame.mixer.music.get_busy():
-                pygame.mixer.music.play(-1)
-        except Exception as e:
-            print(f"[WARN] Failed to load menu music: {e}")
+        pygame.mixer.music.load(music_path)
+        pygame.mixer.music.set_volume(0.2)
+        if not pygame.mixer.music.get_busy():
+            pygame.mixer.music.play(-1)
 
-        # --- SETUP TOMBOL (KOORDINAT MANUAL) ---
-        SCALE_PLAY = 1.2
-        SCALE_SETTINGS = 1.2
-        SCALE_QUIT = 1.2
+        # --- SETUP TOMBOL (Dengan Scaling) ---
+        SCALE_PLAY = 1.0
+        SCALE_SETTINGS = 1.0
+        SCALE_QUIT = 1.0
         
-        # Play Button (1740, 650)
+        # Posisi relatif ke layar (kanan bawah)
+        sw, sh = screen_size
+        btn_x = int(sw * 0.91)  # 85% dari lebar layar
+        
+        # Play Button
         self.btn_play = HoverButton(
-            1740, 650, 
+            btn_x, int(sh * 0.6),
             os.path.join(asset_root, "ui", "btn-play.png"), 
             base_scale=SCALE_PLAY
         )
         
-        # Settings Button (1720, 760)
+        # Settings Button
         self.btn_settings = HoverButton(
-            1720, 760,
+            btn_x, int(sh * 0.70),
             os.path.join(asset_root, "ui", "btn-settings.png"), 
             base_scale=SCALE_SETTINGS
         )
         
-        # Quit Button (1740, 860)
+        # Quit Button
         self.btn_quit = HoverButton(
-            1740, 860, 
+            btn_x, int(sh * 0.80), 
             os.path.join(asset_root, "ui", "btn-exit.png"), 
             base_scale=SCALE_QUIT
         )
