@@ -1,6 +1,6 @@
 """
-Mio Karbu - Player vs AI Mode (Volume Fix)
-==========================================
+Mio Karbu - Player vs AI Mode (Final Fix)
+=========================================
 """
 
 import os
@@ -41,7 +41,7 @@ def find_model(base_dir, model_name):
 def split_wav_audio(filepath, split_sec):
     try:
         if not os.path.exists(filepath):
-            print(f"[WARN] Audio file not found: {filepath}")
+            # print(f"[WARN] Audio file not found: {filepath}")
             dummy = pygame.mixer.Sound(buffer=bytearray(10))
             return dummy, dummy
 
@@ -69,37 +69,19 @@ def load_sound_safe(filepath):
     return None
 
 def main():
-    # ===== CONFIG =====
-    # Pilih spawn/finish berdasarkan track
-    if cfg.TRACK_NAME == "new-4":
-        spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-        finish_start_x = cfg.FINISH_LINE_START_X
-        finish_start_y = cfg.FINISH_LINE_START_Y
-        finish_end_x = cfg.FINISH_LINE_END_X
-        finish_end_y = cfg.FINISH_LINE_END_Y
-    elif cfg.TRACK_NAME == "map-2":
-        spawn_x, spawn_y = cfg.SPAWN_X_2, cfg.SPAWN_Y_2
-        finish_start_x = cfg.FINISH_LINE_START_X_2
-        finish_start_y = cfg.FINISH_LINE_START_Y_2
-        finish_end_x = cfg.FINISH_LINE_END_X_2
-        finish_end_y = cfg.FINISH_LINE_END_Y_2
-    else:
-        # Default ke SPAWN_X/Y untuk track lainnya
-        spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-        finish_start_x = cfg.FINISH_LINE_START_X
-        finish_start_y = cfg.FINISH_LINE_START_Y
-        finish_end_x = cfg.FINISH_LINE_END_X
-        finish_end_y = cfg.FINISH_LINE_END_Y
+    # 1. Setup Display & Audio
+    pygame.mixer.pre_init(44100, -16, 2, 512)
+    pygame.init()
     
     display = DisplayManager(fullscreen=cfg.FULLSCREEN)
     display.init(title="Mio Karbu Racing")
     ui_dir = os.path.join(BASE_DIR, "assets")
     
-    # --- LOAD AUDIO (VOLUME DIKECILIN) ---
+    # --- LOAD AUDIO ---
     path_motor = os.path.join(BASE_DIR, "assets", "audio", "motor.wav")
     snd_countdown_rev, snd_gas = split_wav_audio(path_motor, 4.0)
     
-    # SET VOLUME RENDAH
+    # Volume rendah agar tidak berisik
     snd_countdown_rev.set_volume(0.2) 
     snd_gas.set_volume(0.1)           
     
@@ -138,6 +120,7 @@ def main():
     # =========================================================================
     # PHASE 3: CONFIGURE GAME
     # =========================================================================
+    # Ambil data map dari Config berdasarkan pilihan user
     if selected_map_key in cfg.MAP_SETTINGS:
         map_data = cfg.MAP_SETTINGS[selected_map_key]
     else:
@@ -148,23 +131,24 @@ def main():
         track_scale=cfg.TRACK_SCALE,
         original_track_width=cfg.ORIGINAL_TRACK_WIDTH,
         original_track_height=cfg.ORIGINAL_TRACK_HEIGHT,
-        spawn_x=spawn_x,
-        spawn_y=spawn_y,
-        spawn_angle=cfg.SPAWN_ANGLE,
-        finish_line_start_x=finish_start_x,
-        finish_line_start_y=finish_start_y,
-        finish_line_end_x=finish_end_x,
-        finish_line_end_y=finish_end_y,
-        masking_file=cfg.MASKING_FILE,
+        
+        spawn_x=map_data["spawn_x"],
+        spawn_y=map_data["spawn_y"],
+        spawn_angle=map_data["spawn_angle"],
+        
+        # [FIX] Gunakan parameter baru, HAPUS finish_x/finish_y lama
+        finish_line_start_x=map_data.get("finish_line_start_x", 0),
+        finish_line_start_y=map_data.get("finish_line_start_y", 0),
+        finish_line_end_x=map_data.get("finish_line_end_x", 0),
+        finish_line_end_y=map_data.get("finish_line_end_y", 0),
+        
+        masking_file=map_data["masking_file"],
         masking_subfolder=cfg.MASKING_SUBFOLDER,
         fullscreen=cfg.FULLSCREEN
     )
-    
-    model_name = cfg.DEFAULT_MODEL
-    ai_count = cfg.DEFAULT_AI_COUNT
-    target_laps = cfg.DEFAULT_TARGET_LAPS
-        
-    # ===== PATHS =====
+
+    # Init Resources
+    model_path = find_model(BASE_DIR, cfg.DEFAULT_MODEL)
     config_path = os.path.join(BASE_DIR, "config.txt")
     
     game = GameManager(BASE_DIR, game_cfg)
@@ -176,14 +160,18 @@ def main():
     # =========================================================================
     # PHASE 4: SPAWN ENTITIES
     # =========================================================================
-    sx, sy = cfg.get_spawn_position(game.map_width, game.map_height, map_data["spawn_x"], map_data["spawn_y"])
+    # Gunakan spawn dari map_data yang sudah dipilih
+    sx, sy = cfg.get_spawn_position(
+        game.map_width, 
+        game.map_height, 
+        map_data["spawn_x"], 
+        map_data["spawn_y"]
+    )
     s_angle = map_data["spawn_angle"]
 
     # Player
     player = game.create_motor(sx, sy, "pink", invincible=True)
     player.angle = s_angle
-    
-    # Audio Setup
     player.configure_sounds(gas_sound=snd_gas, idle_sound=snd_idle)
     player.start_engine()
 
