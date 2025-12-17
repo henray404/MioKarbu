@@ -1,10 +1,4 @@
-"""
-Physics Module untuk Motor
-==========================
 
-Mengandung konstanta fisika dan kalkulasi physics.
-Digunakan dengan composition pattern oleh Motor class.
-"""
 
 from dataclasses import dataclass, field
 from typing import Tuple

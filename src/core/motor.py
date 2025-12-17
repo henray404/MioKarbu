@@ -1,14 +1,9 @@
-"""
-Motor Class - Single Sprite & Volume Blending
-=============================================
-"""
 
 import pygame
 import math
 import os
 from typing import Optional, List, Tuple
 
-from core.distance_sensor import DistanceSensor
 from core.physics import PhysicsConfig, PhysicsEngine
 from core.collision import CollisionHandler
 from core.checkpoint import CheckpointTracker
@@ -70,8 +65,6 @@ class Motor:
         self.respawn_duration = 60  # 1 detik = 60 frame (60 FPS)
         self.blink_interval = 6  # Kelap-kelip setiap 6 frame
         
-        # External sensor (optional, for compatibility)
-        self.sensor: Optional[DistanceSensor] = None
         self.track = None
         self.track_surface = None
         self.masking_surface = None
@@ -328,7 +321,6 @@ class Motor:
     def set_track(self, t): self.track = t; self.collision.set_track(t); 
     def set_track_surface(self, s): self.track_surface = s; self.collision.set_track_surface(s)
     def set_masking_surface(self, s): self.masking_surface = s; self.collision.set_masking_surface(s)
-    def set_sensor(self, s): self.sensor = s; 
     def get_state(self): return (self.x, self.y, self.angle, self.velocity, self.alive)
     def get_radar_data(self): return self.radar.get_data()
     def get_speed_kmh(self): return self.physics.get_speed_kmh()
