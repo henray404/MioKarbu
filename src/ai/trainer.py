@@ -34,7 +34,7 @@ class NEATTrainer:
     """
     
     def __init__(self, config_path: str, track_name: str = None,
-                 headless: bool = False, render_interval: int = 1):
+                 headless: bool = False, render_interval: int = 1, map_name: str = ""):
         """
         Inisialisasi trainer.
         
@@ -271,7 +271,7 @@ class NEATTrainer:
         models_dir = os.path.join(BASE_DIR, "models")
         os.makedirs(models_dir, exist_ok=True)
         
-        with open(os.path.join(models_dir, f'{prefix}_genome.pkl'), 'wb') as f:
+        with open(os.path.join(models_dir, f'{prefix}_{map_name}.pkl'), 'wb') as f:
             pickle.dump(genome, f)
         with open(os.path.join(models_dir, f'{prefix}_network.pkl'), 'wb') as f:
             pickle.dump(net, f)

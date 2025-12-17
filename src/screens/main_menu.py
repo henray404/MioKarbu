@@ -10,7 +10,7 @@ class MainMenuScreen(ScreenBase):
         self.result = None
         
         # --- BACKGROUND ---
-        bg_path = os.path.join(asset_root, "lobby.png")
+        bg_path = os.path.join(asset_root, "ui", "lobby.png")
         self.bg = pygame.image.load(bg_path).convert()
         self.bg = pygame.transform.scale(self.bg, screen_size)
         

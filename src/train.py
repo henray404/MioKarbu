@@ -102,7 +102,8 @@ def main():
         config_path=config_path,
         track_name=args.track,
         headless=args.headless,
-        render_interval=args.render_interval
+        render_interval=args.render_interval,
+        map_name=args.track
     )
     trainer.target_laps = args.laps
     

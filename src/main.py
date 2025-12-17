@@ -149,7 +149,7 @@ def main():
     race_started = False
     
     # ===== MAIN MENU =====
-    ui_dir = os.path.join(BASE_DIR, "assets", "ui")
+    ui_dir = os.path.join(BASE_DIR, "assets")
     menu_screen = MainMenuScreen(None, (display.width, display.height), ui_dir)
     
     # menu_screen = MainMenuScreen(None, (screen_width, screen_height), ASSETS_DIR)
@@ -164,7 +164,7 @@ def main():
                 sys.exit()
             menu_screen.handle_event(event)
         
-        menu_screen.update(dt)
+        # menu_screen.update()
 
         # Cek hasil pilihan menu
         if menu_screen.result == "PLAY":
