@@ -30,7 +30,6 @@ from core.motor import Motor
 
 # Constants
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-UI_DIR = os.path.join(BASE_DIR, "assets", "ui")
 
 def load_ai(model_path: str, config_path: str):
     """Load trained genome dan buat neural network"""
@@ -123,7 +122,11 @@ def main():
     print()
     
     # Initialize pygame
+
+    pygame.mixer.pre_init(44100, -16, 2, 512)
     pygame.init()
+    pygame.mixer.init()
+
     screen_width, screen_height = 1280, 960
     screen = pygame.display.set_mode((screen_width, screen_height))
     pygame.display.set_caption("Mio Karbu")
@@ -133,7 +136,7 @@ def main():
     track_surface = pygame.image.load(track_path)
     
     # Scale track (perbesar)
-    track_scale = 6.0  # Ubah nilai ini untuk scale yang berbeda
+    track_scale = 3.0  # Ubah nilai ini untuk scale yang berbeda
     original_width, original_height = track_surface.get_size()
     track_surface = pygame.transform.scale(
         track_surface, 
@@ -179,7 +182,7 @@ def main():
     
     # Spawn positions (di-scale sesuai track)
     # Base position pada track original
-    base_spawn_x, base_spawn_y = 1745, 275
+    base_spawn_x, base_spawn_y = 1800, 1420
     spawn_x = int(base_spawn_x * track_scale)
     spawn_y = int(base_spawn_y * track_scale)
     spawn_angle = 0  # Hadap ke kanan (0°)
@@ -230,8 +233,8 @@ def main():
     countdown_active = True
     race_started = False
     
-    menu_screen = MainMenuScreen(None, (screen_width, screen_height), UI_DIR)
-    
+    menu_screen = MainMenuScreen(None, (screen_width, screen_height), ASSETS_DIR)
+
     in_menu = True
     while in_menu:
         dt = clock.tick(60) / 1000.0
@@ -243,6 +246,8 @@ def main():
             # Lempar event ke menu
             menu_screen.handle_event(event)
         
+        menu_screen.update(dt)
+
         # Cek hasil pilihan menu
         if menu_screen.result == "PLAY":
             in_menu = False # Keluar dari loop menu, LANJUT ke game
