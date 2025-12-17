@@ -27,11 +27,11 @@ ORIGINAL_TRACK_HEIGHT = 1632
 
 # Posisi spawn pada track ORIGINAL (sebelum di-scale)
 # Posisi ini akan di-scale berdasarkan rasio map
-# SPAWN_X = 1800
-# SPAWN_Y = 1380
+SPAWN_X = 1800
+SPAWN_Y = 1380
 
-SPAWN_X = 1375
-SPAWN_Y = 1220
+SPAWN_X_2 = 1375
+SPAWN_Y_2 = 1220
 
 # Sudut spawn (dalam radian, 0 = menghadap kanan)
 SPAWN_ANGLE = 0
@@ -41,6 +41,9 @@ SPAWN_ANGLE = 0
 # Jika berbeda, lap dihitung saat melewati titik ini
 FINISH_X = 1800   # Ubah ini untuk finish line berbeda dari spawn
 FINISH_Y = 1380   # Ubah ini untuk finish line berbeda dari spawn
+
+FINISH_X_2 = 1375
+FINISH_Y_2 = 1220
 
 
 # =============================================================================
@@ -86,7 +89,7 @@ DEFAULT_MODEL = "winner_genome.pkl"
 
 def get_spawn_position(map_width: int, map_height: int) -> tuple:
     """
-    Hitung posisi spawn berdasarkan ukuran map.
+    Hitung posisi spawn berdasarkan ukuran map dan track yang dipilih.
     
     Args:
         map_width: Lebar map setelah di-scale
@@ -95,9 +98,43 @@ def get_spawn_position(map_width: int, map_height: int) -> tuple:
     Returns:
         Tuple (spawn_x, spawn_y) yang sudah di-scale
     """
-    spawn_x = int(SPAWN_X * (map_width / ORIGINAL_TRACK_WIDTH))
-    spawn_y = int(SPAWN_Y * (map_height / ORIGINAL_TRACK_HEIGHT))
+    # Pilih spawn berdasarkan track
+    if TRACK_NAME == "new-4":
+        base_x, base_y = SPAWN_X, SPAWN_Y
+    elif TRACK_NAME == "map-2":
+        base_x, base_y = SPAWN_X_2, SPAWN_Y_2
+    else:
+        # Default ke SPAWN_X/Y untuk track lainnya
+        base_x, base_y = SPAWN_X, SPAWN_Y
+    
+    spawn_x = int(base_x * (map_width / ORIGINAL_TRACK_WIDTH))
+    spawn_y = int(base_y * (map_height / ORIGINAL_TRACK_HEIGHT))
     return spawn_x, spawn_y
+
+
+def get_finish_position(map_width: int, map_height: int) -> tuple:
+    """
+    Hitung posisi finish line berdasarkan ukuran map dan track yang dipilih.
+    
+    Args:
+        map_width: Lebar map setelah di-scale
+        map_height: Tinggi map setelah di-scale
+        
+    Returns:
+        Tuple (finish_x, finish_y) yang sudah di-scale
+    """
+    # Pilih finish berdasarkan track
+    if TRACK_NAME == "new-4":
+        base_x, base_y = FINISH_X, FINISH_Y
+    elif TRACK_NAME == "map-2":
+        base_x, base_y = FINISH_X_2, FINISH_Y_2
+    else:
+        # Default ke FINISH_X/Y untuk track lainnya
+        base_x, base_y = FINISH_X, FINISH_Y
+    
+    finish_x = int(base_x * (map_width / ORIGINAL_TRACK_WIDTH))
+    finish_y = int(base_y * (map_height / ORIGINAL_TRACK_HEIGHT))
+    return finish_x, finish_y
 
 
 def get_masking_path(assets_dir: str) -> str:
