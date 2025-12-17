@@ -22,28 +22,31 @@ class MainMenuScreen(ScreenBase):
             pygame.mixer.music.play(-1)
 
         # --- SETUP TOMBOL (Dengan Scaling) ---
-        # Ganti angka 0.8 sesuai kebutuhan (0.5 = setengah, 1.0 = normal, 1.5 = besar)
-        SCALE_PLAY = 1.2
-        SCALE_SETTINGS = 1.2
-        SCALE_QUIT = 1.2
+        SCALE_PLAY = 1.0
+        SCALE_SETTINGS = 1.0
+        SCALE_QUIT = 1.0
         
-        # Play Button (1100, 400)
+        # Posisi relatif ke layar (kanan bawah)
+        sw, sh = screen_size
+        btn_x = int(sw * 0.85)  # 85% dari lebar layar
+        
+        # Play Button
         self.btn_play = HoverButton(
-            1740, 650, 
+            btn_x, int(sh * 0.6),
             os.path.join(asset_root, "ui", "btn-play.png"), 
             base_scale=SCALE_PLAY
         )
         
-        # Settings Button (1000, 550)
+        # Settings Button
         self.btn_settings = HoverButton(
-            1720, 760,
+            btn_x, int(sh * 0.70),
             os.path.join(asset_root, "ui", "btn-settings.png"), 
             base_scale=SCALE_SETTINGS
         )
         
-        # Quit Button (1000, 700)
+        # Quit Button
         self.btn_quit = HoverButton(
-            1740, 860, 
+            btn_x, int(sh * 0.80), 
             os.path.join(asset_root, "ui", "btn-exit.png"), 
             base_scale=SCALE_QUIT
         )

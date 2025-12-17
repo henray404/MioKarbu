@@ -37,6 +37,8 @@ dokumentasi/README.md
 *.tmp
 *.log
 
+not_used/
+
 # OS generated files
 .DS_Store
 .DS_Store?

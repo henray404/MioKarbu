@@ -11,6 +11,8 @@ Konfigurasi terpusat. Edit koordinat map di dictionary MAP_SETTINGS di bawah.
 # Scale track (1.0 = ukuran asli, 3.0 = 3x lebih besar)
 TRACK_SCALE = 3.0
 
+TRACK_NAME = "new-4"
+
 # Ukuran track original (default reference)
 ORIGINAL_TRACK_WIDTH = 2624
 ORIGINAL_TRACK_HEIGHT = 1632

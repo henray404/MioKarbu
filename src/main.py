@@ -90,6 +90,9 @@ def main():
         finish_start_y = cfg.FINISH_LINE_START_Y
         finish_end_x = cfg.FINISH_LINE_END_X
         finish_end_y = cfg.FINISH_LINE_END_Y
+    # 1. Setup Display & Audio
+    pygame.mixer.pre_init(44100, -16, 2, 512)
+    pygame.init()
     
     display = DisplayManager(fullscreen=cfg.FULLSCREEN)
     display.init(title="Mio Karbu Racing")
