@@ -109,6 +109,12 @@ class Motor:
         # Input
         self.steering_input = 0
         
+        # Respawn state (untuk animasi kelap-kelip dan stun)
+        self.respawning = False
+        self.respawn_timer = 0  # Frame counter untuk stun
+        self.respawn_duration = 60  # 1 detik = 60 frame (60 FPS)
+        self.blink_interval = 6  # Kelap-kelip setiap 6 frame
+        
         # External sensor (optional, for compatibility)
         self.sensor: Optional[DistanceSensor] = None
         
@@ -340,6 +346,10 @@ class Motor:
     
     def handle_input(self, keys) -> None:
         """Handle keyboard input untuk player."""
+        # Jika sedang respawning (stun), blokir input
+        if self.respawning:
+            return
+        
         # Acceleration/braking
         if keys[pygame.K_w]:
             self.physics.apply_acceleration(1.0)
@@ -369,6 +379,14 @@ class Motor:
         """Update motor position dan state."""
         if not self.alive:
             return
+        
+        # Update respawn timer
+        if self.respawning:
+            self.respawn_timer -= 1
+            if self.respawn_timer <= 0:
+                self.respawning = False
+                self.respawn_timer = 0
+            return  # Skip movement update saat respawning
         
         prev_x, prev_y = self.x, self.y
         prev_angle = self.angle
@@ -427,8 +445,15 @@ class Motor:
                         self.alive = False
                         self.is_alive = False
                     else:
-                        self.physics.state.velocity *= -0.2
-                        self.x, self.y = prev_x, prev_y
+                        # Respawn mundur berdasarkan angle
+                        respawn_distance = 150
+                        # Mundur = arah berlawanan dari angle
+                        self.x = prev_x - math.cos(self.angle) * respawn_distance
+                        self.y = prev_y - math.sin(self.angle) * respawn_distance
+                        self.physics.state.velocity = 0  # Reset velocity
+                        # Aktifkan respawn state (stun + blink)
+                        self.respawning = True
+                        self.respawn_timer = self.respawn_duration
                 else:
                     self.physics.state.velocity *= -0.4
                     self.x, self.y = prev_x, prev_y
@@ -501,6 +526,12 @@ class Motor:
     
     def draw(self, screen, camera_or_x, camera_y: int = None) -> None:
         """Render motor."""
+        # Skip render saat respawn blink (kelap-kelip)
+        if self.respawning:
+            # Blink: visible setiap setengah interval
+            if (self.respawn_timer // self.blink_interval) % 2 == 0:
+                return  # Skip render = invisible
+        
         if camera_y is not None:
             cam_x, cam_y = camera_or_x, camera_y
         else:

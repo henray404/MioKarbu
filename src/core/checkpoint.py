@@ -49,17 +49,31 @@ class CheckpointTracker:
     
     Features:
     - Sequential checkpoint system (harus urut)
+    - Line-based finish detection
     - Lap timing
     - Failed lap detection
     """
     
-    def __init__(self, start_x: float, start_y: float):
+    def __init__(self, start_x: float, start_y: float,
+                 finish_line_start: tuple = None, finish_line_end: tuple = None):
         """
         Args:
-            start_x, start_y: Posisi start/finish
+            start_x, start_y: Posisi spawn (untuk leave detection)
+            finish_line_start: (x, y) titik awal garis finish
+            finish_line_end: (x, y) titik akhir garis finish
         """
         self.start_x = start_x
         self.start_y = start_y
+        
+        # Finish line coordinates
+        if finish_line_start and finish_line_end:
+            self.finish_line_start = finish_line_start
+            self.finish_line_end = finish_line_end
+        else:
+            # Default: garis horizontal di spawn
+            self.finish_line_start = (start_x - 100, start_y)
+            self.finish_line_end = (start_x + 100, start_y)
+        
         self.state = CheckpointState(
             last_checkpoint_x=start_x,
             last_checkpoint_y=start_y
@@ -67,7 +81,35 @@ class CheckpointTracker:
         
         # Thresholds
         self.leave_start_dist = 300   # Harus keluar 300 pixel dulu
-        self.return_start_dist = 200  # Kembali dalam 200 pixel = finish
+        
+        # Previous position for line crossing detection
+        self.prev_x = start_x
+        self.prev_y = start_y
+    
+    def _line_segments_intersect(self, p1, p2, p3, p4) -> bool:
+        """
+        Check if line segment p1-p2 intersects with line segment p3-p4.
+        Uses cross product method.
+        """
+        def ccw(A, B, C):
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+        
+        return (ccw(p1, p3, p4) != ccw(p2, p3, p4)) and (ccw(p1, p2, p3) != ccw(p1, p2, p4))
+    
+    def crossed_finish_line(self, x: float, y: float) -> bool:
+        """
+        Check if motor crossed the finish line since last position.
+        """
+        crossed = self._line_segments_intersect(
+            (self.prev_x, self.prev_y),
+            (x, y),
+            self.finish_line_start,
+            self.finish_line_end
+        )
+        # Update previous position
+        self.prev_x = x
+        self.prev_y = y
+        return crossed
     
     def process_checkpoint(self, x: float, y: float, checkpoint_num: int, 
                           current_time: int) -> bool:
@@ -116,7 +158,7 @@ class CheckpointTracker:
     def check_lap(self, x: float, y: float, current_time: int, 
                   invincible: bool = False, debug_name: str = "AI") -> dict:
         """
-        Check lap completion.
+        Check lap completion using line crossing.
         
         Args:
             x, y: Posisi motor
@@ -136,6 +178,9 @@ class CheckpointTracker:
         
         if self.state.lap_cooldown > 0:
             self.state.lap_cooldown -= 1
+            # Still update prev position
+            self.prev_x = x
+            self.prev_y = y
             return result
         
         dist_from_start = math.sqrt(
@@ -144,16 +189,20 @@ class CheckpointTracker:
         )
         
         # Check if left start area
-        if dist_from_start > self.leave_start_dist:
-            self.state.has_left_start = True
-            if self.state.lap_start_time == 0:
-                self.state.lap_start_time = current_time
+        if not self.state.has_left_start:
+            if dist_from_start > self.leave_start_dist:
+                self.state.has_left_start = True
+                if self.state.lap_start_time == 0:
+                    self.state.lap_start_time = current_time
+            # Update prev position
+            self.prev_x = x
+            self.prev_y = y
             return result
         
-        # Check if returned to start
-        if self.state.has_left_start and dist_from_start < self.return_start_dist:
+        # Check if crossed finish line
+        if self.crossed_finish_line(x, y):
             who = "PLAYER" if invincible else debug_name
-            print(f"[LAP CHECK] {who}: checkpoints={self.state.checkpoint_count}/{self.state.checkpoints_for_lap}")
+            print(f"[FINISH LINE] {who}: checkpoints={self.state.checkpoint_count}/{self.state.checkpoints_for_lap}")
             
             if self.state.checkpoint_count >= self.state.checkpoints_for_lap:
                 # Lap completed!
@@ -172,7 +221,7 @@ class CheckpointTracker:
                 result['completed'] = True
                 result['lap_time'] = lap_time
             else:
-                print(f"[LAP CHECK] {who} FAILED - need {self.state.checkpoints_for_lap} checkpoints, got {self.state.checkpoint_count}")
+                print(f"[FINISH LINE] {who} FAILED - need {self.state.checkpoints_for_lap} checkpoints, got {self.state.checkpoint_count}")
                 self.state.failed_lap_checks += 1
                 result['failed'] = True
                 

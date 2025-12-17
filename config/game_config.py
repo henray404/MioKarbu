@@ -36,14 +36,21 @@ SPAWN_Y_2 = 1220
 # Sudut spawn (dalam radian, 0 = menghadap kanan)
 SPAWN_ANGLE = 0
 
-# Posisi FINISH LINE (garis finish untuk lap counting)
-# Jika sama dengan spawn, lap dihitung saat kembali ke spawn
-# Jika berbeda, lap dihitung saat melewati titik ini
-FINISH_X = 1800   # Ubah ini untuk finish line berbeda dari spawn
-FINISH_Y = 1380   # Ubah ini untuk finish line berbeda dari spawn
+# Posisi FINISH LINE (GARIS finish untuk lap counting)
+# Sistem baru: garis antara 2 titik (start -> end)
+# Motor dianggap finish saat melewati garis ini
 
-FINISH_X_2 = 1375
-FINISH_Y_2 = 1220
+# Map: new-4 (garis vertikal dari atas ke bawah)
+FINISH_LINE_START_X = 1800   # X sama = garis vertikal
+FINISH_LINE_START_Y = 1280   # Titik atas
+FINISH_LINE_END_X = 1800     # X sama = garis vertikal
+FINISH_LINE_END_Y = 1680     # Titik bawah
+
+# Map: map-2 (garis vertikal dari atas ke bawah)
+FINISH_LINE_START_X_2 = 1675   # X sama = garis vertikal
+FINISH_LINE_START_Y_2 = 1120   # Titik atas
+FINISH_LINE_END_X_2 = 1675     # X sama = garis vertikal
+FINISH_LINE_END_Y_2 = 1820     # Titik bawah
 
 
 # =============================================================================
@@ -80,7 +87,7 @@ DEFAULT_TARGET_LAPS = 3
 DEFAULT_AI_COUNT = 3
 
 # Default model AI
-DEFAULT_MODEL = "winner_genome.pkl"
+DEFAULT_MODEL = "winner_map-2.pkl"
 
 
 # =============================================================================

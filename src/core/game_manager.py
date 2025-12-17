@@ -28,9 +28,11 @@ class GameConfig:
     spawn_y: int = 1380
     spawn_angle: float = 0.0
     
-    # Finish line (untuk lap counting, bisa beda dari spawn)
-    finish_x: int = 1800
-    finish_y: int = 1380
+    # Finish line (GARIS untuk lap counting)
+    finish_line_start_x: int = 1700
+    finish_line_start_y: int = 1380
+    finish_line_end_x: int = 1900
+    finish_line_end_y: int = 1380
     
     # Masking
     masking_file: str = "ai_masking-4.png"
@@ -191,33 +193,36 @@ class GameManager:
         
         motor.invincible = invincible
         
-        # Set finish position (bisa beda dari spawn)
-        finish_x, finish_y = self.get_finish_position()
-        motor.checkpoint.start_x = finish_x
-        motor.checkpoint.start_y = finish_y
+        # Set finish line coordinates
+        finish_start, finish_end = self.get_finish_line()
+        motor.checkpoint.finish_line_start = finish_start
+        motor.checkpoint.finish_line_end = finish_end
         
         return motor
     
-    def get_finish_position(self) -> Tuple[int, int]:
+    def get_finish_line(self) -> Tuple[Tuple[int, int], Tuple[int, int]]:
         """
-        Hitung finish position berdasarkan map size.
+        Hitung finish line coordinates berdasarkan map size.
         
         Returns:
-            Tuple (finish_x, finish_y) yang sudah di-scale
+            Tuple of ((start_x, start_y), (end_x, end_y)) yang sudah di-scale
         """
         if self.map_width == 0 or self.map_height == 0:
             raise ValueError("Track belum di-load! Panggil load_track() dulu.")
         
-        finish_x = int(
-            self.config.finish_x * 
-            (self.map_width / self.config.original_track_width)
+        scale_x = self.map_width / self.config.original_track_width
+        scale_y = self.map_height / self.config.original_track_height
+        
+        start = (
+            int(self.config.finish_line_start_x * scale_x),
+            int(self.config.finish_line_start_y * scale_y)
         )
-        finish_y = int(
-            self.config.finish_y * 
-            (self.map_height / self.config.original_track_height)
+        end = (
+            int(self.config.finish_line_end_x * scale_x),
+            int(self.config.finish_line_end_y * scale_y)
         )
         
-        return finish_x, finish_y
+        return start, end
     
     def setup_all(self, track_name: str = None, masking_file: str = None):
         """

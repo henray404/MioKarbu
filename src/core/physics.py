@@ -22,7 +22,7 @@ class PhysicsConfig:
     acceleration_rate: float = 0.12      # Akselerasi
     brake_power: float = 0.25            # Kekuatan rem
     friction: float = 0.985              # Gesekan natural (mendekati 1 = mulus)
-    max_speed: float = 20.0              # Kecepatan maksimum
+    max_speed: float = 25.0              # Kecepatan maksimum
     
     # Steering - Speed Dependent
     base_steering_rate: float = 4.5      # Steering rate saat diam/lambat (derajat/frame)

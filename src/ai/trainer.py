@@ -54,14 +54,23 @@ class NEATTrainer:
         used_track = track_name or cfg.TRACK_NAME
         if used_track == "new-4":
             spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-            finish_x, finish_y = cfg.FINISH_X, cfg.FINISH_Y
+            finish_start_x = cfg.FINISH_LINE_START_X
+            finish_start_y = cfg.FINISH_LINE_START_Y
+            finish_end_x = cfg.FINISH_LINE_END_X
+            finish_end_y = cfg.FINISH_LINE_END_Y
         elif used_track == "map-2":
             spawn_x, spawn_y = cfg.SPAWN_X_2, cfg.SPAWN_Y_2
-            finish_x, finish_y = cfg.FINISH_X_2, cfg.FINISH_Y_2
+            finish_start_x = cfg.FINISH_LINE_START_X_2
+            finish_start_y = cfg.FINISH_LINE_START_Y_2
+            finish_end_x = cfg.FINISH_LINE_END_X_2
+            finish_end_y = cfg.FINISH_LINE_END_Y_2
         else:
             # Default ke SPAWN_X/Y untuk track lainnya
             spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-            finish_x, finish_y = cfg.FINISH_X, cfg.FINISH_Y
+            finish_start_x = cfg.FINISH_LINE_START_X
+            finish_start_y = cfg.FINISH_LINE_START_Y
+            finish_end_x = cfg.FINISH_LINE_END_X
+            finish_end_y = cfg.FINISH_LINE_END_Y
         
         self.game_cfg = GameConfig(
             track_name=used_track,
@@ -71,8 +80,10 @@ class NEATTrainer:
             spawn_x=spawn_x,
             spawn_y=spawn_y,
             spawn_angle=cfg.SPAWN_ANGLE,
-            finish_x=finish_x,
-            finish_y=finish_y,
+            finish_line_start_x=finish_start_x,
+            finish_line_start_y=finish_start_y,
+            finish_line_end_x=finish_end_x,
+            finish_line_end_y=finish_end_y,
             masking_file=cfg.MASKING_FILE,
             masking_subfolder=cfg.MASKING_SUBFOLDER,
         )
@@ -134,7 +145,7 @@ class NEATTrainer:
             cars.append(car)
         
         # Timing
-        max_gen_time = 60  # 60 detik per generasi
+        max_gen_time = 90  # 60 detik per generasi
         gen_start_time = time.time()
         best_lap_count = 0
         
