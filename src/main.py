@@ -59,29 +59,17 @@ def find_model(base_dir: str, model_name: str) -> str:
 
 def main():
     # ===== CONFIG =====
-    # Pilih spawn/finish berdasarkan track
-    if cfg.TRACK_NAME == "new-4":
-        spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-        finish_x, finish_y = cfg.FINISH_X, cfg.FINISH_Y
-    elif cfg.TRACK_NAME == "map-2":
-        spawn_x, spawn_y = cfg.SPAWN_X_2, cfg.SPAWN_Y_2
-        finish_x, finish_y = cfg.FINISH_X_2, cfg.FINISH_Y_2
-    else:
-        # Default ke SPAWN_X/Y untuk track lainnya
-        spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-        finish_x, finish_y = cfg.FINISH_X, cfg.FINISH_Y
-    
     # Semua setting dari game_config.py
     game_cfg = GameConfig(
         track_name=cfg.TRACK_NAME,
         track_scale=cfg.TRACK_SCALE,
         original_track_width=cfg.ORIGINAL_TRACK_WIDTH,
         original_track_height=cfg.ORIGINAL_TRACK_HEIGHT,
-        spawn_x=spawn_x,
-        spawn_y=spawn_y,
+        spawn_x=cfg.SPAWN_X,
+        spawn_y=cfg.SPAWN_Y,
         spawn_angle=cfg.SPAWN_ANGLE,
-        finish_x=finish_x,
-        finish_y=finish_y,
+        finish_x=cfg.FINISH_X,
+        finish_y=cfg.FINISH_Y,
         masking_file=cfg.MASKING_FILE,
         masking_subfolder=cfg.MASKING_SUBFOLDER,
         fullscreen=cfg.FULLSCREEN,
