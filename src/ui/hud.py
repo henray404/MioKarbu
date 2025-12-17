@@ -13,8 +13,8 @@ class GameHUD:
             "gold": (255, 215, 0),
             "silver": (192, 192, 192),
             "bronze": (205, 127, 50),
-            "bar_bg": (90, 50, 30),
-            "bar_fill": (100, 220, 50)
+            "bar_bg": (70, 40, 20),       # Background bar (gelap)
+            "bar_fill": (100, 255, 50)    # Warna bar (hijau neon)
         }
         
         self.font_big = pygame.font.SysFont(None, 48, bold=True)
@@ -73,10 +73,8 @@ class GameHUD:
         
         self.draw_panel(surface, rect)
         
-        # --- PENGAMAN VISUAL ---
-        # Memastikan display tidak pernah lebih dari total (misal 4/3)
-        # Jika current 0, tetap 0/3. Jika current 3, jadi 3/3. Jika current 4 (bug), dipaksa 3/3.
         display_lap = min(current, total)
+        display_lap = max(1, display_lap) # Minimal tampil 1
         
         lbl = self.font_small.render("LAP", True, self.colors['text'])
         val = self.font_big.render(f"{display_lap} / {total}", True, self.colors['text'])
@@ -89,18 +87,40 @@ class GameHUD:
         center_y = self.height - 100
         radius = 80
         
+        # 1. Draw Circle Panel (Background)
         pygame.draw.circle(surface, self.colors['bg'], (center_x, center_y), radius)
         pygame.draw.circle(surface, self.colors['border'], (center_x, center_y), radius, 5)
         
-        spd_surf = self.font_big.render(str(int(speed_kmh)), True, self.colors['text'])
+        # 2. Text Speed
+        spd_surf = self.font_big.render(str(int(abs(speed_kmh))), True, self.colors['text'])
         unit_surf = self.font_small.render("KM/H", True, self.colors['border'])
         
         surface.blit(spd_surf, spd_surf.get_rect(center=(center_x, center_y - 10)))
         surface.blit(unit_surf, unit_surf.get_rect(center=(center_x, center_y + 25)))
         
-        rect = pygame.Rect(center_x-radius+10, center_y-radius+10, (radius-10)*2, (radius-10)*2)
-        ratio = min(1.0, abs(speed_kmh) / 120)
-        pygame.draw.arc(surface, self.colors['bar_fill'], rect, 0, math.pi, 5) 
+        # 3. ANIMATED ARC BAR
+        # Buat kotak rect untuk arc
+        arc_rect = pygame.Rect(center_x-radius+10, center_y-radius+10, (radius-10)*2, (radius-10)*2)
+        
+        # Hitung rasio kecepatan (Max visual 140 km/h)
+        ratio = min(1.0, abs(speed_kmh) / 140)
+        
+        # Gambar Background Bar (Gelap) - Setengah lingkaran penuh
+        # Pygame Arc: 0 rad = Kanan (Timur), Pi rad = Kiri (Barat)
+        # Kita gambar dari 0 sampai Pi (Bagian Atas)
+        pygame.draw.arc(surface, self.colors['bar_bg'], arc_rect, 0, math.pi, 15)
+        
+        # Gambar Active Bar (Hijau) - Mengisi dari Kiri ke Kanan
+        if ratio > 0.01:
+            # Karena Pygame menggambar arc "Counter-Clockwise" (berlawanan jarum jam):
+            # Arah 0 -> Pi adalah Kanan ke Kiri (Atas).
+            # Agar terlihat mengisi dari Kiri ke Kanan, kita mainkan start angle-nya.
+            # Start Angle bergerak dari Pi (Kiri) menuju 0 (Kanan)
+            
+            start_angle = math.pi * (1.0 - ratio)
+            stop_angle = math.pi
+            
+            pygame.draw.arc(surface, self.colors['bar_fill'], arc_rect, start_angle, stop_angle, 15)
 
     def render_game_over(self, surface, winner_name):
         # 1. Draw Overlay Gelap
