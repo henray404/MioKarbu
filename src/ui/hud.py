@@ -74,7 +74,6 @@ class GameHUD:
         self.draw_panel(surface, rect)
         
         display_lap = min(current, total)
-        display_lap = max(1, display_lap) # Minimal tampil 1
         
         lbl = self.font_small.render("LAP", True, self.colors['text'])
         val = self.font_big.render(f"{display_lap} / {total}", True, self.colors['text'])

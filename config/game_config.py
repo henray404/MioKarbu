@@ -34,41 +34,18 @@ MAP_SETTINGS = {
     "map-2": {
         "track_file": "map-2",
         "masking_file": "ai_masking-5.png",
-        
         "spawn_x": 1375,
         "spawn_y": 1220,
         "spawn_angle": 0,
-        
-        # Tambahkan koordinat finish line (sesuaikan dengan data temenmu)
-        "finish_line_start_x": 1800, 
-        "finish_line_start_y": 1380,
-        "finish_line_end_x": 1800,
-        "finish_line_end_y": 1500,
-        
-        "finish_x": 1800, # Fallback
-        "finish_y": 1380,
-
         "model": "winner_map-2.pkl"
-
     },
     
     "new-4": {
         "track_file": "new-4",
         "masking_file": "ai_masking-4.png",
-        
-        "spawn_x": 1760,  # Sesuaikan
-        "spawn_y": 1380,  # Sesuaikan
+        "spawn_x": 1760,
+        "spawn_y": 1380,
         "spawn_angle": 0,
-        
-        # Tambahkan koordinat finish line baru
-        "finish_line_start_x": 100, 
-        "finish_line_start_y": 100,
-        "finish_line_end_x": 300,
-        "finish_line_end_y": 100,
-        
-        "finish_x": 100, # Fallback
-        "finish_y": 100,
-
         "model": "winner_genome.pkl"
     }
 }

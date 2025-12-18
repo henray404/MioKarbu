@@ -41,7 +41,7 @@ def main():
     parser.add_argument(
         '--track', '-t',
         type=str,
-        default='mandalika',
+        default='map-2',
         help='Nama track untuk training (default: mandalika)'
     )
     

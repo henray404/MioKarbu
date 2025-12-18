@@ -28,12 +28,6 @@ class GameConfig:
     spawn_y: int = 1380
     spawn_angle: float = 0.0
     
-    # Finish line (GARIS untuk lap counting)
-    finish_line_start_x: int = 1700
-    finish_line_start_y: int = 1380
-    finish_line_end_x: int = 1900
-    finish_line_end_y: int = 1380
-    
     # Masking
     masking_file: str = "ai_masking-4.png"
     masking_subfolder: str = "masking"
@@ -72,7 +66,7 @@ class GameManager:
         self.masking_surface: Optional[pygame.Surface] = None
         
         # Map dimensions (setelah scaling)
-        self.map_width: int = 0
+        self.map_width: int = 0 
         self.map_height: int = 0
     
     def load_track(self, track_name: str = None) -> pygame.Surface:
@@ -193,36 +187,7 @@ class GameManager:
         
         motor.invincible = invincible
         
-        # Set finish line coordinates
-        finish_start, finish_end = self.get_finish_line()
-        motor.checkpoint.finish_line_start = finish_start
-        motor.checkpoint.finish_line_end = finish_end
-        
         return motor
-    
-    def get_finish_line(self) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-        """
-        Hitung finish line coordinates berdasarkan map size.
-        
-        Returns:
-            Tuple of ((start_x, start_y), (end_x, end_y)) yang sudah di-scale
-        """
-        if self.map_width == 0 or self.map_height == 0:
-            raise ValueError("Track belum di-load! Panggil load_track() dulu.")
-        
-        scale_x = self.map_width / self.config.original_track_width
-        scale_y = self.map_height / self.config.original_track_height
-        
-        start = (
-            int(self.config.finish_line_start_x * scale_x),
-            int(self.config.finish_line_start_y * scale_y)
-        )
-        end = (
-            int(self.config.finish_line_end_x * scale_x),
-            int(self.config.finish_line_end_y * scale_y)
-        )
-        
-        return start, end
     
     def setup_all(self, track_name: str = None, masking_file: str = None):
         """

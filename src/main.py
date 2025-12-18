@@ -148,17 +148,9 @@ def main():
         track_scale=cfg.TRACK_SCALE,
         original_track_width=cfg.ORIGINAL_TRACK_WIDTH,
         original_track_height=cfg.ORIGINAL_TRACK_HEIGHT,
-        
         spawn_x=map_data["spawn_x"],
         spawn_y=map_data["spawn_y"],
         spawn_angle=map_data["spawn_angle"],
-        
-        # [FIX] Gunakan parameter baru, HAPUS finish_x/finish_y lama
-        finish_line_start_x=map_data.get("finish_line_start_x", 0),
-        finish_line_start_y=map_data.get("finish_line_start_y", 0),
-        finish_line_end_x=map_data.get("finish_line_end_x", 0),
-        finish_line_end_y=map_data.get("finish_line_end_y", 0),
-        
         masking_file=map_data["masking_file"],
         masking_subfolder=cfg.MASKING_SUBFOLDER,
         fullscreen=cfg.FULLSCREEN
@@ -307,6 +299,8 @@ def main():
         elif race_started and countdown > -60: display.render_go(); countdown -= 1 if not is_paused else 0
             
         hud.render_leaderboard(display.screen, all_racers)
+        # DEBUG: Print lap count setiap frame
+        # print(f"[HUD] Player lap: {player.lap_count}")
         hud.render_lap_counter(display.screen, player.lap_count, cfg.DEFAULT_TARGET_LAPS)
         hud.render_speedometer(display.screen, player.get_speed_kmh())
         

@@ -1,9 +1,6 @@
 """
 NEAT Trainer untuk Mio Karbu
 ============================
-
-Modular trainer untuk training AI dengan NEAT algorithm.
-Menggunakan GameManager untuk asset loading.
 """
 
 import os
@@ -29,18 +26,15 @@ import game_config as cfg
 class NEATTrainer:
     """
     Trainer untuk NEAT evolution.
-    
-    Menggunakan GameManager untuk loading track dan masking.
+    Menggunakan MAP_SETTINGS dari game_config.py.
     """
     
     def __init__(self, config_path: str, track_name: str = None,
-                 headless: bool = False, render_interval: int = 1, map_name: str = ""):
+                 headless: bool = False, render_interval: int = 1):
         """
-        Inisialisasi trainer.
-        
         Args:
             config_path: Path ke neat config file
-            track_name: Nama track (tanpa .png), None = pakai config
+            track_name: Key map dari MAP_SETTINGS ("map-2" atau "new-4")
             headless: Training tanpa visualisasi (lebih cepat)
             render_interval: Render setiap N frame
         """
@@ -48,42 +42,25 @@ class NEATTrainer:
         self.headless = headless
         self.render_interval = max(1, render_interval)
         
-        # Game config - pakai dari game_config.py
-        # Pilih spawn/finish berdasarkan track
-        used_track = track_name or cfg.TRACK_NAME
-        if used_track == "new-4":
-            spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-            finish_start_x = cfg.FINISH_LINE_START_X
-            finish_start_y = cfg.FINISH_LINE_START_Y
-            finish_end_x = cfg.FINISH_LINE_END_X
-            finish_end_y = cfg.FINISH_LINE_END_Y
-        elif used_track == "map-2":
-            spawn_x, spawn_y = cfg.SPAWN_X_2, cfg.SPAWN_Y_2
-            finish_start_x = cfg.FINISH_LINE_START_X_2
-            finish_start_y = cfg.FINISH_LINE_START_Y_2
-            finish_end_x = cfg.FINISH_LINE_END_X_2
-            finish_end_y = cfg.FINISH_LINE_END_Y_2
+        # Pilih map dari MAP_SETTINGS
+        self.map_key = track_name or cfg.DEFAULT_MAP_KEY
+        if self.map_key in cfg.MAP_SETTINGS:
+            self.map_data = cfg.MAP_SETTINGS[self.map_key]
         else:
-            # Default ke SPAWN_X/Y untuk track lainnya
-            spawn_x, spawn_y = cfg.SPAWN_X, cfg.SPAWN_Y
-            finish_start_x = cfg.FINISH_LINE_START_X
-            finish_start_y = cfg.FINISH_LINE_START_Y
-            finish_end_x = cfg.FINISH_LINE_END_X
-            finish_end_y = cfg.FINISH_LINE_END_Y
+            print(f"[WARN] Map '{self.map_key}' not found, using default")
+            self.map_data = cfg.MAP_SETTINGS[cfg.DEFAULT_MAP_KEY]
+            self.map_key = cfg.DEFAULT_MAP_KEY
         
+        # Build GameConfig dari MAP_SETTINGS
         self.game_cfg = GameConfig(
-            track_name=track_name or cfg.TRACK_NAME,
+            track_name=self.map_data["track_file"],
             track_scale=cfg.TRACK_SCALE,
             original_track_width=cfg.ORIGINAL_TRACK_WIDTH,
             original_track_height=cfg.ORIGINAL_TRACK_HEIGHT,
-            spawn_x=cfg.SPAWN_X,
-            spawn_y=cfg.SPAWN_Y,
-            spawn_angle=cfg.SPAWN_ANGLE,
-            finish_line_start_x=finish_start_x,
-            finish_line_start_y=finish_start_y,
-            finish_line_end_x=finish_end_x,
-            finish_line_end_y=finish_end_y,
-            masking_file=cfg.MASKING_FILE,
+            spawn_x=self.map_data["spawn_x"],
+            spawn_y=self.map_data["spawn_y"],
+            spawn_angle=self.map_data["spawn_angle"],
+            masking_file=self.map_data["masking_file"],
             masking_subfolder=cfg.MASKING_SUBFOLDER,
         )
         
@@ -295,12 +272,13 @@ class NEATTrainer:
         models_dir = os.path.join(BASE_DIR, "models")
         os.makedirs(models_dir, exist_ok=True)
         
-        with open(os.path.join(models_dir, f'{prefix}_{map_name}.pkl'), 'wb') as f:
+        filename = f'{prefix}_{self.map_key}.pkl'
+        with open(os.path.join(models_dir, filename), 'wb') as f:
             pickle.dump(genome, f)
         with open(os.path.join(models_dir, f'{prefix}_network.pkl'), 'wb') as f:
             pickle.dump(net, f)
         
-        print(f"Model tersimpan di: {models_dir}")
+        print(f"Model tersimpan: {filename}")
     
     def run(self, generations: int = 50, checkpoint_path: str = None) -> Optional[neat.DefaultGenome]:
         """
@@ -342,14 +320,14 @@ class NEATTrainer:
         population.add_reporter(
             neat.Checkpointer(5, filename_prefix=f'{checkpoint_dir}/neat-checkpoint-')
         )
-        
+
         # Run evolution
         winner = population.run(self.eval_genomes, generations)
-        
+
         # Save best genome jika belum ada winner
         if winner and not self.winner_found:
             winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
             self._save_model(winner, winner_net, 'best')
-        
+
         self.display.quit()
         return winner
