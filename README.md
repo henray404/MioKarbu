@@ -1,4 +1,4 @@
-# 🏍️ Mio Karbu Racing
+# Mio Karbu Racing
 
 Game balap motor dengan AI menggunakan **NEAT** (NeuroEvolution of Augmenting Topologies).
 
@@ -6,7 +6,7 @@ Game balap motor dengan AI menggunakan **NEAT** (NeuroEvolution of Augmenting To
 
 ---
 
-## 🎮 Cara Main
+## Cara Main
 
 ### Player Mode
 
@@ -21,12 +21,11 @@ python main.py
 | `S`               | Mundur / Rem |
 | `A`               | Belok Kiri   |
 | `D`               | Belok Kanan  |
-| `SPACE` / `SHIFT` | Drift        |
 | `ESC`             | Pause        |
 
 ---
 
-## 🤖 Training AI
+## Training AI
 
 ```bash
 cd src
@@ -41,7 +40,7 @@ python train.py --checkpoint neat_checkpoints/neat-checkpoint-10  # Resume
 
 ---
 
-## 📁 Struktur Project
+## Struktur Project
 
 ```
 MioKarbu/
@@ -77,46 +76,7 @@ MioKarbu/
 ```
 
 ---
-
-## 🧠 Konsep OOP
-
-### 1. Composition Pattern
-
-```python
-class Motor:
-    def __init__(self):
-        self.physics = PhysicsEngine()      # HAS-A
-        self.collision = CollisionHandler()  # HAS-A
-        self.checkpoint = CheckpointTracker() # HAS-A
-        self.radar = Radar()                  # HAS-A
-```
-
-### 2. Encapsulation
-
-```python
-@property
-def velocity(self) -> float:
-    return self.physics.state.velocity  # Hide internal structure
-```
-
-### 3. Dataclasses
-
-```python
-@dataclass
-class PhysicsConfig:
-    max_speed: float = 12.0
-    acceleration_rate: float = 0.3
-```
-
-### 4. Single Responsibility
-
-- `PhysicsEngine` → Hanya handle fisika
-- `CollisionHandler` → Hanya handle tabrakan
-- `CheckpointTracker` → Hanya handle lap counting
-
----
-
-## 🗺️ Maps
+## Maps
 
 | Key     | Track File | Masking          |
 | ------- | ---------- | ---------------- |
@@ -125,7 +85,7 @@ class PhysicsConfig:
 
 ---
 
-## 🔧 Install
+## Install
 
 ```bash
 pip install -r requirements.txt
@@ -137,8 +97,3 @@ pip install -r requirements.txt
 - Pygame 2.6+
 - neat-python
 
----
-
-## 👥 Contributors
-
-- Henry (henray404)
