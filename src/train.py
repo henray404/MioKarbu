@@ -1,21 +1,3 @@
-"""
-Training Entry Point untuk Tabrak Bahlil AI
-============================================
-
-Cara pakai:
-    python train.py                    # Training default (dengan visualisasi)
-    python train.py --generations 100  # Set jumlah generasi
-    python train.py --track mandalika  # Pilih track
-    python train.py --laps 10          # Target lap untuk menang
-    
-Mode cepat (tanpa visualisasi):
-    python train.py --headless         # Training tanpa visualisasi (3-5x lebih cepat)
-    python train.py --render-interval 10  # Render setiap 10 frame (lebih cepat)
-    
-Contoh kombinasi:
-    python train.py -g 100 --headless  # 100 generasi, tanpa visualisasi
-"""
-
 import os
 import sys
 
@@ -102,8 +84,7 @@ def main():
         config_path=config_path,
         track_name=args.track,
         headless=args.headless,
-        render_interval=args.render_interval,
-        map_name=args.track
+        render_interval=args.render_interval
     )
     trainer.target_laps = args.laps
     

@@ -7,10 +7,9 @@ class PickMapScreen(ScreenBase):
     def __init__(self, manager, screen_size, asset_root):
         super().__init__(manager, screen_size)
         self.asset_root = asset_root
-        self.selected_map = None  # Akan berisi string nama map (misal: 'track-1')
+        self.selected_map = None  
         self.finished = False
         
-        # --- STYLE CONFIG (Wood/Brown Theme) ---
         self.colors = {
             "bg_panel": (149, 98, 53),
             "border": (107, 65, 39),
