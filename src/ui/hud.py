@@ -104,17 +104,9 @@ class GameHUD:
         # Hitung rasio kecepatan (Max visual 140 km/h)
         ratio = min(1.0, abs(speed_kmh) / 140)
         
-        # Gambar Background Bar (Gelap) - Setengah lingkaran penuh
-        # Pygame Arc: 0 rad = Kanan (Timur), Pi rad = Kiri (Barat)
-        # Kita gambar dari 0 sampai Pi (Bagian Atas)
         pygame.draw.arc(surface, self.colors['bar_bg'], arc_rect, 0, math.pi, 15)
         
-        # Gambar Active Bar (Hijau) - Mengisi dari Kiri ke Kanan
         if ratio > 0.01:
-            # Karena Pygame menggambar arc "Counter-Clockwise" (berlawanan jarum jam):
-            # Arah 0 -> Pi adalah Kanan ke Kiri (Atas).
-            # Agar terlihat mengisi dari Kiri ke Kanan, kita mainkan start angle-nya.
-            # Start Angle bergerak dari Pi (Kiri) menuju 0 (Kanan)
             
             start_angle = math.pi * (1.0 - ratio)
             stop_angle = math.pi

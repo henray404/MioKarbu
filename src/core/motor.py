@@ -100,10 +100,6 @@ class Motor:
         if not self.use_sprite:
             self.surface = pygame.Surface((self.length, self.width), pygame.SRCALPHA)
             self.surface.fill((255, 0, 255)) # Magenta kotak
-
-    # =================================================================
-    # AUDIO METHODS (Volume Blending)
-    # =================================================================
     
     def configure_sounds(self, gas_sound, idle_sound):
         self.snd_gas = gas_sound
@@ -137,10 +133,6 @@ class Motor:
 
         self.chan_gas.set_volume(self.current_gas_vol)
         self.chan_idle.set_volume(1.0 - self.current_gas_vol)
-
-    # =================================================================
-    # INPUT
-    # =================================================================
     
     def handle_input(self, keys) -> None:
         """Handle keyboard input untuk player."""
@@ -168,10 +160,6 @@ class Motor:
         is_drift = keys[pygame.K_SPACE] or keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
         angle_change = self.physics.apply_steering(steering, is_drift)
         self.angle += angle_change
-
-    # =================================================================
-    # UPDATE
-    # =================================================================
     
     def update(self, walls=None) -> None:
         if not self.alive: return
@@ -257,10 +245,6 @@ class Motor:
         self.radar.radars.clear()
         self.stop_all_sounds()
         self.start_engine()
-
-    # =================================================================
-    # PROPERTY ACCESSORS & SETTERS (FIXED!)
-    # =================================================================
     
     @property
     def velocity(self) -> float: return self.physics.state.velocity
@@ -298,7 +282,6 @@ class Motor:
     @last_checkpoint_time.setter
     def last_checkpoint_time(self, value: int): self.checkpoint.state.last_checkpoint_time = value
     
-    # Read-only properties (tidak perlu setter di main.py)
     @property
     def max_speed(self) -> float: return self.physics.config.max_speed
     @property
@@ -314,10 +297,6 @@ class Motor:
     @property
     def on_checkpoint(self) -> bool: return self.checkpoint.state.on_checkpoint
 
-    # =================================================================
-    # HELPERS
-    # =================================================================
-    
     def set_track(self, t): self.track = t; self.collision.set_track(t); 
     def set_track_surface(self, s): self.track_surface = s; self.collision.set_track_surface(s)
     def set_masking_surface(self, s): self.masking_surface = s; self.collision.set_masking_surface(s)

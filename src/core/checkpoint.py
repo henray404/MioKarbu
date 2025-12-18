@@ -1,10 +1,3 @@
-"""
-Checkpoint Module untuk Motor (Reverted to Sequential Logic)
-============================================================
-Logika: Lap bertambah saat transisi dari CP Terakhir -> CP 1.
-Tidak menggunakan perhitungan jarak geometris start/finish line.
-"""
-
 import math
 from dataclasses import dataclass
 
@@ -12,17 +5,17 @@ from dataclasses import dataclass
 class CheckpointState:
     """State untuk checkpoint dan lap tracking."""
     # Lap Data
-    lap_count: int = 0            # Mulai dari 0
+    lap_count: int = 0           
     current_lap_time: int = 0
     
     # Checkpoint Data
-    checkpoint_count: int = 0     # Total checkpoint valid yang dilewati
-    expected_checkpoint: int = 1  # Target checkpoint berikutnya (1, 2, 3, 4...)
-    total_checkpoints: int = 4    # Jumlah checkpoint per lap
+    checkpoint_count: int = 0     
+    expected_checkpoint: int = 1  
+    total_checkpoints: int = 4   
     
     # Timing & Position
     last_checkpoint_time: int = 0
-    on_checkpoint: bool = False   # Flag agar tidak spam hit saat diam di area CP
+    on_checkpoint: bool = False   
     
     # Lap Timing
     lap_start_time: int = 0

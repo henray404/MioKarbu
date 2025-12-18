@@ -106,9 +106,6 @@ def main():
     snd_idle = load_sound_safe(path_idle)
     if snd_idle: snd_idle.set_volume(0.15)
     
-    # =========================================================================
-    # PHASE 1: MAIN MENU
-    # =========================================================================
     menu = MainMenuScreen(None, (display.width, display.height), ui_dir)
     while menu.result is None:
         display.tick(60)
@@ -120,9 +117,6 @@ def main():
         
     if menu.result == "EXIT": display.quit(); sys.exit()
 
-    # =========================================================================
-    # PHASE 2: PICK MAP
-    # =========================================================================
     picker = PickMapScreen(None, (display.width, display.height), ui_dir)
     while not picker.finished:
         display.tick(60)
@@ -134,9 +128,6 @@ def main():
 
     selected_map_key = picker.selected_map or cfg.DEFAULT_MAP_KEY
 
-    # =========================================================================
-    # PHASE 3: CONFIGURE GAME
-    # =========================================================================
     # Ambil data map dari Config berdasarkan pilihan user
     if selected_map_key in cfg.MAP_SETTINGS:
         map_data = cfg.MAP_SETTINGS[selected_map_key]
@@ -166,9 +157,6 @@ def main():
     hud = GameHUD((display.width, display.height))
     pause_popup = PausePopup((display.width, display.height))
 
-    # =========================================================================
-    # PHASE 4: SPAWN ENTITIES
-    # =========================================================================
     # Gunakan spawn dari map_data yang sudah dipilih
     sx, sy = cfg.get_spawn_position(
         game.map_width, 
@@ -214,9 +202,6 @@ def main():
     rev_played = False
     race_started = False
 
-    # =========================================================================
-    # PHASE 5: GAME LOOP
-    # =========================================================================
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
