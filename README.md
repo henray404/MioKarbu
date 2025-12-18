@@ -1,83 +1,144 @@
-# Tabrak Bahlil
+# 🏍️ Mio Karbu Racing
 
-Game balap motor dengan AI menggunakan NEAT (NeuroEvolution of Augmenting Topologies).
+Game balap motor dengan AI menggunakan **NEAT** (NeuroEvolution of Augmenting Topologies).
 
-## Struktur Project
+> Final Project OOP - Semester 3
 
-```
-tabrak-bahlil/
-├── main.py              # Entry point - Player mode (WASD control)
-├── config.txt           # NEAT configuration
-├── requirements.txt     # Python dependencies
-├── assets/
-│   ├── motor/           # Sprite motor
-│   └── tracks/          # Track images
-├── models/              # Trained AI models
-│   └── *.pkl
-├── neat_checkpoints/    # Training checkpoints
-└── src/
-    ├── train.py         # Training script untuk AI
-    ├── play_ai.py       # Jalankan AI yang sudah ditraining
-    ├── core/
-    │   ├── ai_car.py    # AI Car class dengan sensor radar
-    │   ├── motor.py     # Motor class untuk player
-    │   ├── track.py     # Track loader & collision
-    │   └── distance_sensor.py
-    └── ai/
-        └── trainer.py   # NEAT Trainer class
-```
+---
 
-## Cara Main
+## 🎮 Cara Main
 
 ### Player Mode
+
 ```bash
+cd src
 python main.py
 ```
-- `W` - Maju
-- `S` - Mundur
-- `A` - Belok kiri
-- `D` - Belok kanan
 
-### Training AI
+| Key               | Action       |
+| ----------------- | ------------ |
+| `W`               | Maju / Gas   |
+| `S`               | Mundur / Rem |
+| `A`               | Belok Kiri   |
+| `D`               | Belok Kanan  |
+| `SPACE` / `SHIFT` | Drift        |
+| `ESC`             | Pause        |
+
+---
+
+## 🤖 Training AI
+
 ```bash
 cd src
-python train.py                     # Default: 50 generasi
+python train.py                     # Default: 50 generasi, map-2
 python train.py -g 100              # 100 generasi
-python train.py -t mandalika -l 10  # Track mandalika, target 10 lap
+python train.py -t new-4            # Track new-4
+python train.py --headless          # Training tanpa visual (lebih cepat)
+python train.py --checkpoint neat_checkpoints/neat-checkpoint-10  # Resume
 ```
 
-### Play dengan AI
-```bash
-cd src
-python play_ai.py                           # Model default
-python play_ai.py -m winner_15laps_genome.pkl  # Model tertentu
+**Output:** Model tersimpan di `models/winner_{map_name}.pkl`
+
+---
+
+## 📁 Struktur Project
+
+```
+MioKarbu/
+├── src/
+│   ├── main.py              # Entry point game
+│   ├── train.py             # Script training AI
+│   ├── core/
+│   │   ├── motor.py         # Motor class (main entity)
+│   │   ├── physics.py       # Physics engine (velocity, steering, drift)
+│   │   ├── collision.py     # Collision detection dari masking
+│   │   ├── checkpoint.py    # Lap counting (sequential checkpoint)
+│   │   ├── radar.py         # Sensor AI (5 radar)
+│   │   ├── game_manager.py  # Asset loading
+│   │   └── display_manager.py # Rendering & camera
+│   ├── ai/
+│   │   └── trainer.py       # NEAT Trainer class
+│   ├── screens/
+│   │   ├── main_menu.py     # Menu utama
+│   │   └── pick_map.py      # Map selection
+│   └── ui/
+│       ├── hud.py           # Leaderboard, lap counter, speedometer
+│       └── hover_button.py  # Button component
+├── config/
+│   └── game_config.py       # Konfigurasi terpusat (MAP_SETTINGS)
+├── assets/
+│   ├── motor/               # Sprite motor (pink, blue, purple, yellow)
+│   ├── tracks/              # Track images + masking/
+│   ├── ui/                  # Button & background
+│   └── audio/               # Sound effects
+├── models/                  # Trained AI models (.pkl)
+├── neat_checkpoints/        # Training checkpoints
+└── config.txt               # NEAT configuration
 ```
 
-## Teknologi
+---
 
-- **Python 3.13+** dengan **Pygame 2.6**
-- **NEAT-Python** untuk neural evolution
-- **5 Sensor Radar** (input untuk neural network)
-- **3 Output**: Belok kiri, Lurus, Belok kanan
+## 🧠 Konsep OOP
 
-## Install Dependencies
+### 1. Composition Pattern
+
+```python
+class Motor:
+    def __init__(self):
+        self.physics = PhysicsEngine()      # HAS-A
+        self.collision = CollisionHandler()  # HAS-A
+        self.checkpoint = CheckpointTracker() # HAS-A
+        self.radar = Radar()                  # HAS-A
+```
+
+### 2. Encapsulation
+
+```python
+@property
+def velocity(self) -> float:
+    return self.physics.state.velocity  # Hide internal structure
+```
+
+### 3. Dataclasses
+
+```python
+@dataclass
+class PhysicsConfig:
+    max_speed: float = 12.0
+    acceleration_rate: float = 0.3
+```
+
+### 4. Single Responsibility
+
+- `PhysicsEngine` → Hanya handle fisika
+- `CollisionHandler` → Hanya handle tabrakan
+- `CheckpointTracker` → Hanya handle lap counting
+
+---
+
+## 🗺️ Maps
+
+| Key     | Track File | Masking          |
+| ------- | ---------- | ---------------- |
+| `map-2` | map-2.png  | ai_masking-5.png |
+| `new-4` | new-4.png  | ai_masking-4.png |
+
+---
+
+## 🔧 Install
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Track yang Tersedia
+**Dependencies:**
 
-- `mandalika` - Sirkuit Mandalika
-- `japan` - Sirkuit Japan
-- `japan-1` - Sirkuit Japan (variant)
+- Python 3.10+
+- Pygame 2.6+
+- neat-python
 
-## Training Tips
+---
 
-1. Mulai dengan generasi kecil (50) untuk testing
-2. Tingkatkan target lap secara bertahap
-3. Gunakan checkpoint untuk melanjutkan training:
-   ```bash
-   python train.py --checkpoint neat_checkpoints/neat-checkpoint-49
-   ```
+## 👥 Contributors
 
+- Henry (henray404)
