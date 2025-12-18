@@ -59,7 +59,6 @@ class HoverButton(UIComponent):
 
 
 class SettingsPopup(UIComponent):
-    # ... (Kode SettingsPopup SAMA PERSIS seperti sebelumnya, tidak perlu diubah) ...
     def __init__(self, screen_size, max_volume=0.4, curr_volume=0.2):
         sw, sh = screen_size
         panel_w, panel_h = 600, 400
